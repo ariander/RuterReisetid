@@ -107,7 +107,6 @@ export function MapView({ center, isochrone, stops, onMapClick }: MapViewProps) 
         layout: {
           "text-field": ["get", "point_count_abbreviated"],
           "text-size": 11,
-          "text-font": ["Noto Sans Bold"],
         },
         paint: {
           "text-color": "#ffffff",
@@ -173,13 +172,13 @@ export function MapView({ center, isochrone, stops, onMapClick }: MapViewProps) 
       if (!features?.length) return;
       const clusterId = features[0].properties?.cluster_id;
       const source = map.current?.getSource("stops") as maplibre.GeoJSONSource;
-      source.getClusterExpansionZoom(clusterId, (err: Error | null, zoom: number | null) => {
-        if (err || zoom == null || !map.current) return;
+      source.getClusterExpansionZoom(clusterId).then((zoom) => {
+        if (zoom == null || !map.current) return;
         map.current.easeTo({
           center: (features[0].geometry as any).coordinates as [number, number],
           zoom,
         });
-      });
+      }).catch(() => {});
       e.originalEvent.stopPropagation();
     });
 
