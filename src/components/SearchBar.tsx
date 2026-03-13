@@ -16,9 +16,15 @@ export function SearchBar({ onSelect }: SearchBarProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const debounceTimer = useRef<NodeJS.Timeout | null>(null);
+  const suppressSearch = useRef(false);
 
   useEffect(() => {
     if (debounceTimer.current) clearTimeout(debounceTimer.current);
+
+    if (suppressSearch.current) {
+      suppressSearch.current = false;
+      return;
+    }
 
     if (query.length < 3) {
       setResults([]);
@@ -74,14 +80,15 @@ export function SearchBar({ onSelect }: SearchBarProps) {
       </div>
 
       {isOpen && (
-        <Card className="absolute top-full mt-2 w-full bg-white shadow-2xl rounded-xl overflow-hidden border-none py-1 max-h-72 overflow-y-auto z-50">
+        <Card className="absolute top-full gap-1 mt-0 w-full bg-white shadow-2xl rounded-lg overflow-hidden border-none py-3 max-h-96 overflow-y-auto z-50">
           {results.map((res: any) => (
             <button
               key={res.properties.id}
-              className="w-full px-4 py-2 text-left hover:bg-slate-50 transition-colors flex flex-col"
+              className="w-full px-4 py-2 text-left hover:bg-slate-50 transition-colors flex flex-col gap-0.5"
               onClick={() => {
                 const [lng, lat] = res.geometry.coordinates;
                 onSelect({ lat, lng, name: res.properties.name });
+                suppressSearch.current = true;
                 setQuery(res.properties.name);
                 setIsOpen(false);
                 setResults([]);
@@ -91,7 +98,7 @@ export function SearchBar({ onSelect }: SearchBarProps) {
               <span className="font-medium text-ink-primary text-sm">
                 {res.properties.name}
               </span>
-              <span className="text-xs text-ink-primary/50">
+              <span className="text-xs text-ink-primary/60">
                 {res.properties.locality || res.properties.county}
               </span>
             </button>

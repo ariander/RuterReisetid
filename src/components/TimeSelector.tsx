@@ -28,14 +28,14 @@ export function TimeSelector({
     <div className="flex items-center gap-3 px-1">
       {/* Transit */}
       <div className="flex items-center gap-2 flex-1 min-w-0">
-        <div className="w-5 h-5 relative shrink-0 opacity-70">
+        <div className="w-5 h-5 relative shrink-0">
           <Image src="/public-transport.svg" alt="Kollektiv" fill />
         </div>
         <Select value={`${transitTime} min`} onValueChange={(val) => { if (val) onTransitChange(val); }}>
           <SelectTrigger className="border-none bg-ink-primary/5 rounded-md h-8 w-full focus:ring-ink-primary font-medium text-ink-primary text-xs">
             <SelectValue />
           </SelectTrigger>
-          <SelectContent className="rounded-xl border-none shadow-xl">
+          <SelectContent className="rounded-md border-none shadow-xl">
             <SelectItem value="5 min">5 min</SelectItem>
             <SelectItem value="10 min">10 min</SelectItem>
             <SelectItem value="15 min">15 min</SelectItem>
@@ -47,18 +47,18 @@ export function TimeSelector({
         </Select>
       </div>
 
-      <span className="text-ink-primary/30 text-base shrink-0">+</span>
+      <span className="text-ink-primary/50 text-base shrink-0">+</span>
 
       {/* Walk */}
       <div className="flex items-center gap-2 flex-1 min-w-0">
-        <div className="w-4 h-4 relative shrink-0 opacity-70">
+        <div className="w-4 h-4 relative shrink-0">
           <Image src="/walk.svg" alt="Gange" fill />
         </div>
         <Select value={`${walkTime} min`} onValueChange={(val) => { if (val) onWalkChange(val); }}>
           <SelectTrigger className="border-none bg-ink-primary/5 rounded-lg h-8 w-full focus:ring-ink-primary font-medium text-ink-primary text-xs">
             <SelectValue />
           </SelectTrigger>
-          <SelectContent className="rounded-xl border-none shadow-xl">
+          <SelectContent className="rounded-md border-none shadow-xl">
             <SelectItem value="0 min">0 min</SelectItem>
             <SelectItem value="5 min">5 min</SelectItem>
             <SelectItem value="10 min">10 min</SelectItem>
@@ -69,7 +69,7 @@ export function TimeSelector({
         </Select>
       </div>
 
-      <span className="text-ink-primary/30 text-base shrink-0">=</span>
+      <span className="text-ink-primary/50 text-base shrink-0">=</span>
 
       {/* Total */}
       <div className={`shrink-0 font-bold text-sm ${
