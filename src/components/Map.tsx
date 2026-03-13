@@ -176,11 +176,11 @@ export function MapView({ center, isochrone, stops, onMapClick, onViewChange }: 
         source: "stops",
         filter: ["!", ["has", "point_count"]],
         paint: {
-          "circle-radius": 13,
+          "circle-radius": 16,
           "circle-color": "#000000",
-          "circle-opacity": 0.12,
-          "circle-translate": [0, 1],
-          "circle-blur": 1,
+          "circle-opacity": 0.30,
+          "circle-translate": [0, 3],
+          "circle-blur": 0.8,
         },
       });
       // Individual stop — colored circle by mode
