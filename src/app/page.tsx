@@ -38,6 +38,19 @@ export default function Home() {
   const ferryAutoTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const ferryLeaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // iOS viewport-height fix: `fixed inset-0` on iOS (especially PWA mode) doesn't
+  // always reach the physical bottom due to safe-area / browser-chrome quirks.
+  // We measure the real innerHeight and store it as --app-height so the map
+  // fills the full screen.
+  useEffect(() => {
+    const setAppHeight = () => {
+      document.documentElement.style.setProperty("--app-height", `${window.innerHeight}px`);
+    };
+    setAppHeight();
+    window.addEventListener("resize", setAppHeight);
+    return () => window.removeEventListener("resize", setAppHeight);
+  }, []);
+
   // Sync loading overlay: wait 200ms before showing (skips overlay for fast
   // responses), then animate out smoothly when done.
   useEffect(() => {
@@ -124,7 +137,7 @@ export default function Home() {
     setLocation({ lat, lng, name: "" });
 
   return (
-    <main className="fixed inset-0">
+    <main className="fixed inset-x-0 top-0 overflow-hidden" style={{ height: "var(--app-height, 100dvh)" }}>
       <div
         className="fixed left-1/2 -translate-x-1/2 z-[110] w-full max-w-md px-4"
         style={{ top: "calc(env(safe-area-inset-top) + 1rem)" }}
