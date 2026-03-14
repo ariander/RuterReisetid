@@ -3,7 +3,7 @@ export interface Stop {
   name: string;
   lat: number;
   lng: number;
-  mode: string; // bus, metro, tram, rail, water, etc.
+  modes: string[]; // all transport modes, sorted by priority
 }
 
 export async function getNearbyStops(lat: number, lng: number, distance = 1500): Promise<Stop[]> {
@@ -46,16 +46,23 @@ export async function getNearbyStops(lat: number, lng: number, distance = 1500):
   const PRIORITY = ["metro", "rail", "tram", "water", "bus"];
 
   return (data.data?.nearest?.edges ?? []).map((edge: any) => {
-    const modes: string[] = Array.isArray(edge.node.place.transportMode)
+    const raw: string[] = Array.isArray(edge.node.place.transportMode)
       ? edge.node.place.transportMode
       : [edge.node.place.transportMode ?? "bus"];
-    const primary = PRIORITY.find((m) => modes.includes(m)) ?? modes[0] ?? "bus";
+
+    // Deduplicate & sort by visual priority (metro first, bus last)
+    const modes = [...new Set(raw)].sort((a, b) => {
+      const ai = PRIORITY.indexOf(a);
+      const bi = PRIORITY.indexOf(b);
+      return (ai === -1 ? 999 : ai) - (bi === -1 ? 999 : bi);
+    });
+
     return {
       id: edge.node.place.id,
       name: edge.node.place.name,
       lat: edge.node.place.latitude,
       lng: edge.node.place.longitude,
-      mode: primary,
+      modes,
     };
   });
 }

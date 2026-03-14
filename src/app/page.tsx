@@ -25,6 +25,8 @@ export default function Home() {
   const [isochrone, setIsochrone] = useState<any>(null);
   const [stops, setStops] = useState<Stop[]>([]);
   const [loading, setLoading] = useState(false);
+  const [geoActive, setGeoActive] = useState(false);
+  const geoWatchId = useRef<number | null>(null);
 
   // Loading overlay visual state (decoupled from `loading` so exit can animate)
   const [loadingVisible, setLoadingVisible] = useState(false);
@@ -64,6 +66,65 @@ export default function Home() {
       setFerryLeaving(false);
     }, 350);
   }, []);
+
+  const handleGeolocate = useCallback(() => {
+    if (geoActive) {
+      // Turn off geolocation
+      if (geoWatchId.current !== null) {
+        navigator.geolocation.clearWatch(geoWatchId.current);
+        geoWatchId.current = null;
+      }
+      setGeoActive(false);
+      return;
+    }
+
+    if (!navigator.geolocation) {
+      console.error("Geolocation not supported");
+      return;
+    }
+
+    setGeoActive(true);
+
+    // Get position once immediately
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setLocation({
+          lat: pos.coords.latitude,
+          lng: pos.coords.longitude,
+          name: "Min posisjon",
+        });
+      },
+      (err) => {
+        console.error("Geolocation error:", err);
+        setGeoActive(false);
+      },
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
+  }, [geoActive]);
+
+  // Clean up geolocation watch on unmount
+  useEffect(() => {
+    return () => {
+      if (geoWatchId.current !== null) {
+        navigator.geolocation.clearWatch(geoWatchId.current);
+      }
+    };
+  }, []);
+
+  // If user manually picks a location (map click or search), deactivate geo
+  const setLocationAndDeactivateGeo = useCallback(
+    (loc: { lat: number; lng: number; name: string }) => {
+      if (loc.name !== "Min posisjon") {
+        if (geoWatchId.current !== null) {
+          navigator.geolocation.clearWatch(geoWatchId.current);
+          geoWatchId.current = null;
+        }
+        setGeoActive(false);
+      }
+      setLocation(loc);
+    },
+    []
+  );
 
   const fetchIsochrone = useCallback(async (
     lat: number, lng: number,
@@ -121,10 +182,10 @@ export default function Home() {
   }, []);
 
   const handleMapClick = (lat: number, lng: number) =>
-    setLocation({ lat, lng, name: "" });
+    setLocationAndDeactivateGeo({ lat, lng, name: "" });
 
   return (
-    <main className="relative w-full h-full">
+    <main className="fixed inset-0">
       <div
         className="fixed left-1/2 -translate-x-1/2 z-[110] w-full max-w-md px-4"
         style={{ top: "calc(env(safe-area-inset-top) + 1rem)" }}
@@ -132,7 +193,26 @@ export default function Home() {
         <div className="bg-white/70 backdrop-blur-xl rounded-2xl shadow-lg px-3 py-2.5 z-index-99">
           <div className="flex items-center gap-3 pl-2">
             <Image src="/reisetid-logo.svg" alt="Reisetid" width={96} height={96} className="shrink-0" />
-            <SearchBar onSelect={setLocation} />
+            <SearchBar onSelect={setLocationAndDeactivateGeo} />
+            <button
+              onClick={handleGeolocate}
+              className={`shrink-0 w-9 h-9 rounded-full flex items-center justify-center transition-all duration-200 ${
+                geoActive
+                  ? "bg-[#091AA9]/10"
+                  : "hover:bg-ink-primary/5 active:scale-95"
+              }`}
+              aria-label="Min posisjon"
+            >
+              <img
+                src="/position.svg"
+                alt=""
+                width={20}
+                height={20}
+                className={`transition-all duration-200 ${
+                  geoActive ? "opacity-100 scale-110" : "opacity-40 grayscale"
+                }`}
+              />
+            </button>
           </div>
 
           <div className="h-px bg-ink-primary/10 mx-1 my-2" />

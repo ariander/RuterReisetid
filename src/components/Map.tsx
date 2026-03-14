@@ -22,6 +22,9 @@ const STOP_COLORS: Record<string, string> = {
   rail:   "#003087",
 };
 
+/** Badge offset (px) between adjacent mode circles — 75 % of badge width gives 25 % overlap */
+const BADGE_OFFSET = 18;
+
 export function MapView({ center, isochrone, stops, onMapClick, onViewChange }: MapViewProps) {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<maplibre.Map | null>(null);
@@ -78,21 +81,48 @@ export function MapView({ center, isochrone, stops, onMapClick, onViewChange }: 
       if (c) onViewChangeRef.current?.(c.lat, c.lng);
     };
 
-    // Rasterise an SVG URL to ImageData via an offscreen <canvas>
-    function svgToImageData(url: string, size: number): Promise<ImageData> {
+    // ── Image helpers ──────────────────────────────────────────────
+
+    /** Load an <img> from a URL and resolve when ready */
+    function loadImg(url: string): Promise<HTMLImageElement> {
       return new Promise((resolve, reject) => {
         const img = new Image();
-        img.onload = () => {
-          const canvas = document.createElement("canvas");
-          canvas.width = size;
-          canvas.height = size;
-          const ctx = canvas.getContext("2d")!;
-          ctx.drawImage(img, 0, 0, size, size);
-          resolve(ctx.getImageData(0, 0, size, size));
-        };
+        img.onload = () => resolve(img);
         img.onerror = reject;
         img.src = url;
       });
+    }
+
+    /**
+     * Create a composite "badge" image: coloured circle + white SVG icon.
+     * Rendered at 2× for retina crispness; logical size = S/2.
+     */
+    async function createBadge(svgUrl: string, color: string): Promise<ImageData> {
+      const S = 48;         // canvas px  (logical 24 px @ pixelRatio 2)
+      const R = 20;         // circle radius
+      const STROKE = 3;
+      const ICON = 24;      // inner icon draw-size
+
+      const canvas = document.createElement("canvas");
+      canvas.width = S;
+      canvas.height = S;
+      const ctx = canvas.getContext("2d")!;
+
+      // Coloured circle with white border
+      ctx.beginPath();
+      ctx.arc(S / 2, S / 2, R, 0, Math.PI * 2);
+      ctx.fillStyle = color;
+      ctx.fill();
+      ctx.strokeStyle = "#ffffff";
+      ctx.lineWidth = STROKE;
+      ctx.stroke();
+
+      // White SVG icon centred inside
+      const icon = await loadImg(svgUrl);
+      const off = (S - ICON) / 2;
+      ctx.drawImage(icon, off, off, ICON, ICON);
+
+      return ctx.getImageData(0, 0, S, S);
     }
 
     map.current.on("load", async () => {
@@ -102,25 +132,27 @@ export function MapView({ center, isochrone, stops, onMapClick, onViewChange }: 
       // height before the viewport is fully calculated, leaving a gap at the bottom.
       requestAnimationFrame(() => map.current?.resize());
 
-      // Load transport mode icons — rasterised from SVG at 24×24
-      const modeIcons: [string, string][] = [
-        ["icon-metro", "/icons/metro.svg"],
-        ["icon-tram",  "/icons/tram.svg"],
-        ["icon-bus",   "/icons/bus.svg"],
-        ["icon-train", "/icons/train.svg"],
-        ["icon-boat",  "/icons/boat.svg"],
+      // ── Create composite stop-badge images ───────────────────────
+      const badges: [string, string, string][] = [
+        ["stop-metro", "/icons/metro.svg", STOP_COLORS.metro],
+        ["stop-tram",  "/icons/tram.svg",  STOP_COLORS.tram],
+        ["stop-bus",   "/icons/bus.svg",   STOP_COLORS.bus],
+        ["stop-coach", "/icons/bus.svg",   STOP_COLORS.coach],
+        ["stop-train", "/icons/train.svg", STOP_COLORS.rail],
+        ["stop-boat",  "/icons/boat.svg",  STOP_COLORS.water],
       ];
       await Promise.all(
-        modeIcons.map(([id, url]) =>
-          svgToImageData(url, 24)
+        badges.map(([id, url, color]) =>
+          createBadge(url, color)
             .then((imgData) => {
-              if (map.current && !map.current.hasImage(id)) map.current.addImage(id, imgData);
+              if (map.current && !map.current.hasImage(id))
+                map.current.addImage(id, imgData, { pixelRatio: 2 });
             })
             .catch(() => {})
         )
       );
 
-      // Isochrone layers
+      // ── Isochrone layers ─────────────────────────────────────────
       map.current?.addSource("isochrone", {
         type: "geojson",
         data: { type: "FeatureCollection", features: [] },
@@ -132,7 +164,7 @@ export function MapView({ center, isochrone, stops, onMapClick, onViewChange }: 
         paint: { "fill-color": "#07A85A", "fill-opacity": 0.25 },
       });
 
-      // Stops source with clustering
+      // ── Stops source with clustering ─────────────────────────────
       map.current?.addSource("stops", {
         type: "geojson",
         data: { type: "FeatureCollection", features: [] },
@@ -169,12 +201,13 @@ export function MapView({ center, isochrone, stops, onMapClick, onViewChange }: 
         },
       });
 
-      // Individual stop — drop shadow
+      // ── Individual stops ─────────────────────────────────────────
+      // Drop shadow — only once per stop (modeIndex 0)
       map.current?.addLayer({
         id: "stops-shadow",
         type: "circle",
         source: "stops",
-        filter: ["!", ["has", "point_count"]],
+        filter: ["all", ["!", ["has", "point_count"]], ["==", ["get", "modeIndex"], 0]],
         paint: {
           "circle-radius": 18,
           "circle-color": "#20212B",
@@ -183,56 +216,60 @@ export function MapView({ center, isochrone, stops, onMapClick, onViewChange }: 
           "circle-blur": 1,
         },
       });
-      // Individual stop — colored circle by mode
+
+      // Composite badge (coloured circle + mode icon) — one per mode,
+      // offset horizontally so multi-mode stops fan out side-by-side.
       map.current?.addLayer({
-        id: "stops-dot",
-        type: "circle",
-        source: "stops",
-        filter: ["!", ["has", "point_count"]],
-        paint: {
-          "circle-radius": 11,
-          "circle-color": [
-            "match", ["get", "mode"],
-            "metro",  STOP_COLORS.metro,
-            "tram",   STOP_COLORS.tram,
-            "bus",    STOP_COLORS.bus,
-            "coach",  STOP_COLORS.coach,
-            "water",  STOP_COLORS.water,
-            "rail",   STOP_COLORS.rail,
-            "#757575",
-          ],
-          "circle-stroke-width": 2,
-          "circle-stroke-color": "#ffffff",
-        },
-      });
-      // Individual stop — mode icon (white SVG)
-      map.current?.addLayer({
-        id: "stops-icon",
+        id: "stops-badge",
         type: "symbol",
         source: "stops",
         filter: ["!", ["has", "point_count"]],
         layout: {
           "icon-image": [
             "match", ["get", "mode"],
-            "metro", "icon-metro",
-            "tram",  "icon-tram",
-            "bus",   "icon-bus",
-            "coach", "icon-bus",
-            "rail",  "icon-train",
-            "water", "icon-boat",
-            "icon-bus",
+            "metro", "stop-metro",
+            "tram",  "stop-tram",
+            "bus",   "stop-bus",
+            "coach", "stop-coach",
+            "rail",  "stop-train",
+            "water", "stop-boat",
+            "stop-bus",
           ],
-          "icon-size": 0.7,
+          "icon-size": 1,
           "icon-allow-overlap": true,
           "icon-ignore-placement": true,
+          // Offset each badge horizontally:
+          // dx = (modeIndex − (modeCount−1)/2) × BADGE_OFFSET
+          "icon-offset": [
+            "case",
+            // ── single mode: centred ──
+            ["==", ["get", "modeCount"], 1],
+            ["literal", [0, 0]],
+            // ── two modes ──
+            ["all", ["==", ["get", "modeCount"], 2], ["==", ["get", "modeIndex"], 0]],
+            ["literal", [-BADGE_OFFSET / 2, 0]],
+            ["all", ["==", ["get", "modeCount"], 2], ["==", ["get", "modeIndex"], 1]],
+            ["literal", [BADGE_OFFSET / 2, 0]],
+            // ── three modes ──
+            ["all", ["==", ["get", "modeCount"], 3], ["==", ["get", "modeIndex"], 0]],
+            ["literal", [-BADGE_OFFSET, 0]],
+            ["all", ["==", ["get", "modeCount"], 3], ["==", ["get", "modeIndex"], 1]],
+            ["literal", [0, 0]],
+            ["all", ["==", ["get", "modeCount"], 3], ["==", ["get", "modeIndex"], 2]],
+            ["literal", [BADGE_OFFSET, 0]],
+            // fallback
+            ["literal", [0, 0]],
+          ] as any,
+          "symbol-sort-key": ["get", "modeIndex"],  // later index drawn on top
         },
       });
-      // Name labels — only at zoom >= 15, only individual stops
+
+      // Name labels — only at zoom ≥ 15, once per stop
       map.current?.addLayer({
         id: "stops-label",
         type: "symbol",
         source: "stops",
-        filter: ["!", ["has", "point_count"]],
+        filter: ["all", ["!", ["has", "point_count"]], ["==", ["get", "modeIndex"], 0]],
         minzoom: 15,
         layout: {
           "text-field": ["get", "name"],
@@ -308,23 +345,31 @@ export function MapView({ center, isochrone, stops, onMapClick, onViewChange }: 
     const source = map.current.getSource("isochrone") as maplibre.GeoJSONSource;
     if (!source) return;
     source.setData(isochrone);
-
-    // No fitBounds — the isochrone can span the whole region and would zoom way out,
-    // making small but important polygons (e.g. ferry islands) invisible.
   }, [isochrone]);
 
-  // Update stops layer
+  // Update stops layer — expand multi-mode stops into one feature per mode
   useEffect(() => {
     if (!map.current || !mapLoaded.current) return;
     const source = map.current.getSource("stops") as maplibre.GeoJSONSource;
     if (!source) return;
+
+    // Cap at 3 modes per stop to keep the badge row manageable
+    const MAX_MODES = 3;
+
     source.setData({
       type: "FeatureCollection",
-      features: (stops ?? []).map((s) => ({
-        type: "Feature",
-        geometry: { type: "Point", coordinates: [s.lng, s.lat] },
-        properties: { name: s.name, mode: s.mode },
-      })),
+      features: (stops ?? []).flatMap((s) =>
+        s.modes.slice(0, MAX_MODES).map((mode, i, arr) => ({
+          type: "Feature" as const,
+          geometry: { type: "Point" as const, coordinates: [s.lng, s.lat] },
+          properties: {
+            name: s.name,
+            mode,
+            modeIndex: i,
+            modeCount: arr.length,
+          },
+        }))
+      ),
     });
   }, [stops]);
 
