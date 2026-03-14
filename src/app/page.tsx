@@ -47,8 +47,11 @@ export default function Home() {
     setLocation({ lat, lng, name: "" });
 
   return (
-    <main className="relative w-full h-screen overflow-hidden bg-slate-50">
-      <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[110] w-full max-w-md px-4">
+    <main className="relative w-full h-dvh overflow-hidden">
+      <div
+        className="fixed left-1/2 -translate-x-1/2 z-[110] w-full max-w-md px-4"
+        style={{ top: "calc(env(safe-area-inset-top) + 1rem)" }}
+      >
         <div className="bg-white/70 backdrop-blur-xl rounded-2xl shadow-lg px-3 py-2.5 z-index-99">
           <div className="flex items-center gap-3 pl-2">
             <Image src="/reisetid-logo.svg" alt="Reisetid" width={96} height={96} className="shrink-0" />

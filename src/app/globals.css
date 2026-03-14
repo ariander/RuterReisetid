@@ -130,9 +130,12 @@
     @apply border-border outline-ring/50;
   }
   body {
-    @apply bg-background text-foreground;
+    @apply text-foreground;
+    /* Warm beige matching Voyager map — hides the flash before map renders */
+    background-color: #ede7df;
   }
   html {
     @apply font-sans;
+    background-color: #ede7df;
   }
 }

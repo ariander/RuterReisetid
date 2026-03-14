@@ -174,7 +174,7 @@ export function MapView({ center, isochrone, stops, onMapClick, onViewChange }: 
         paint: {
           "circle-radius": 18,
           "circle-color": "#20212B",
-          "circle-opacity": 0.3,
+          "circle-opacity": 0.25,
           "circle-translate": [0, 3],
           "circle-blur": 1,
         },
@@ -330,5 +330,5 @@ export function MapView({ center, isochrone, stops, onMapClick, onViewChange }: 
     });
   }, [stops]);
 
-  return <div ref={mapContainer} className="w-full h-screen" />;
+  return <div ref={mapContainer} className="w-full h-dvh" />;
 }

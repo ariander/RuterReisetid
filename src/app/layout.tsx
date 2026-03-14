@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import localFont from "next/font/local";
 import "./globals.css";
 
@@ -23,9 +23,25 @@ const tidFont = localFont({
   variable: "--font-tid",
 });
 
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  viewportFit: "cover",
+};
+
 export const metadata: Metadata = {
-  title: "Ruter Reisetid POC",
+  title: "Ruter Reisetid",
   description: "Interaktivt isokron-kart for Ruter",
+  appleWebApp: {
+    capable: true,
+    title: "Ruter Reisetid",
+    statusBarStyle: "black-translucent",
+  },
+  icons: {
+    icon: "/favicon.png",
+    apple: "/apple-touch-icon.png",
+  },
 };
 
 export default function RootLayout({
