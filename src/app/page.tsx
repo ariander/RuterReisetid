@@ -124,7 +124,7 @@ export default function Home() {
     setLocation({ lat, lng, name: "" });
 
   return (
-    <main className="fixed inset-x-0 top-0" style={{ bottom: "-60px" }}>
+    <main className="fixed inset-0">
       <div
         className="fixed left-1/2 -translate-x-1/2 z-[110] w-full max-w-md px-4"
         style={{ top: "calc(env(safe-area-inset-top) + 1rem)" }}
