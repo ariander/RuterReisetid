@@ -98,6 +98,10 @@ export function MapView({ center, isochrone, stops, onMapClick, onViewChange }: 
     map.current.on("load", async () => {
       mapLoaded.current = true;
 
+      // Force a resize after layout settles — iOS sometimes reads the container
+      // height before the viewport is fully calculated, leaving a gap at the bottom.
+      requestAnimationFrame(() => map.current?.resize());
+
       // Load transport mode icons — rasterised from SVG at 24×24
       const modeIcons: [string, string][] = [
         ["icon-metro", "/icons/metro.svg"],
