@@ -329,19 +329,8 @@ export function MapView({ center, isochrone, stops, onMapClick, onViewChange }: 
   }, [stops]);
 
   return (
-    <div
-      className="absolute inset-x-0 top-0"
-      style={{ bottom: "calc(-1 * env(safe-area-inset-bottom, 0px))" }}
-    >
+    <div className="absolute inset-0">
       <div ref={mapContainer} className="w-full h-full" />
-      {/* 🟣 PURPLE debug strip – sits at absolute bottom:0 of the extended
-          wrapper. If env(safe-area-inset-bottom) > 0 this element lives
-          *below* the blue fixed strip (layout-viewport bottom). Visible here
-          = iOS renders absolute overflow into the home-indicator zone. */}
-      <div
-        className="absolute inset-x-0 h-3 bg-purple-500 z-[901] opacity-90"
-        style={{ bottom: 0 }}
-      />
     </div>
   );
 }

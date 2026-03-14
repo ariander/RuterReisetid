@@ -133,9 +133,16 @@
     @apply text-foreground;
     /* Warm beige matching Voyager map — hides the flash before map renders */
     background-color: #ede7df;
+    height: 100%;
+    overflow: hidden;
   }
   html {
     @apply font-sans;
     background-color: #ede7df;
+    /* Extend document height to cover top + bottom safe areas so that
+       absolutely-positioned children can reach the home-indicator zone.
+       See: https://dev.to/karmasakshi/make-your-pwas-look-handsome-on-ios-1o08 */
+    height: 100%;
+    overflow: hidden;
   }
 }

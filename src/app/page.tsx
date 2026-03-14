@@ -124,24 +124,7 @@ export default function Home() {
     setLocation({ lat, lng, name: "" });
 
   return (
-    <main className="fixed inset-0">
-      {/* ── DEBUG STRIPS ─────────────────────────────────────────────────────
-          Remove when done. Each strip marks a layout boundary:
-          🔴 RED    – fixed top:0            (physical screen top)
-          🟡 YELLOW – fixed top:env(sat)     (safe-area-inset-top boundary)
-          🔵 BLUE   – fixed bottom:0         (layout-viewport bottom, where
-                                              fixed elements are clipped)
-          🟢 GREEN  – fixed bottom:env(sab)  (safe-area-inset-bottom boundary,
-                                              sits *above* blue on viewport-fit=cover)
-          🟣 PURPLE – absolute bottom:0      (bottom of map's extended wrapper,
-                                              should be *below* blue if the
-                                              negative-bottom trick worked)
-      ──────────────────────────────────────────────────────────────────── */}
-      <div className="fixed inset-x-0 h-3 bg-red-500 z-[900] opacity-90" style={{ top: 0 }} />
-      <div className="fixed inset-x-0 h-3 bg-yellow-400 z-[900] opacity-90" style={{ top: "env(safe-area-inset-top, 0px)" }} />
-      <div className="fixed inset-x-0 h-3 bg-blue-600 z-[900] opacity-90" style={{ bottom: 0 }} />
-      <div className="fixed inset-x-0 h-3 bg-green-500 z-[900] opacity-90" style={{ bottom: "env(safe-area-inset-bottom, 0px)" }} />
-      {/* Purple is rendered inside the Map wrapper in Map.tsx */}
+    <main className="relative w-full h-full">
       <div
         className="fixed left-1/2 -translate-x-1/2 z-[110] w-full max-w-md px-4"
         style={{ top: "calc(env(safe-area-inset-top) + 1rem)" }}
