@@ -139,14 +139,30 @@ export async function POST(req: NextRequest) {
       },
     };
 
-    const response = await fetch(
-      `https://api.targomo.com/westcentraleurope/v1/polygon_post?key=${key}`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(targomoBody),
-      }
-    );
+    // ISO datetime for Entur (16:00 CET, same window as Targomo transit frame)
+    const isoDateTime =
+      `${dateStr.slice(0, 4)}-${dateStr.slice(4, 6)}-${dateStr.slice(6, 8)}` +
+      `T16:00:00+01:00`;
+
+    // ── Fire main Targomo + Entur ferry checks in parallel ───────────────────
+    // getReachableFerryStops returns [] immediately if source is outside the
+    // Oslo fjord area or the budget is too small, so it's safe to always call.
+    const [response, ferryStops] = await Promise.all([
+      fetch(
+        `https://api.targomo.com/westcentraleurope/v1/polygon_post?key=${key}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(targomoBody),
+        },
+      ),
+      useTransit
+        ? getReachableFerryStops(lat, lng, totalTime, isoDateTime).catch((e) => {
+            console.warn("Ferry stops check failed:", e);
+            return [];
+          })
+        : Promise.resolve([]),
+    ]);
 
     if (!response.ok) {
       const errorText = await response.text();
@@ -157,51 +173,31 @@ export async function POST(req: NextRequest) {
     const json = await response.json();
     const targomoData = json.data || json;
 
-    // ── Ferry augmentation ────────────────────────────────────────────────────
-    // Entur has full Norwegian GTFS data (Nesoddbåten, island ferries, etc.).
-    // For each ferry terminal Entur says is reachable, we fire a secondary
-    // Targomo request *from that terminal* with the remaining time budget.
-    // This gives accurate road/transit coverage beyond the water crossing
-    // (e.g. local buses on Nesodden, walking on the island).
-    if (useTransit && targomoData?.features) {
-      try {
-        // ISO datetime for Entur matching the Targomo transit frame (16:00 CET)
-        const isoDateTime =
-          `${dateStr.slice(0, 4)}-${dateStr.slice(4, 6)}-${dateStr.slice(6, 8)}` +
-          `T16:00:00+01:00`;
+    // ── Secondary Targomo calls from reachable ferry terminals ────────────────
+    // Entur told us which ferry stops are reachable within the budget.
+    // Now fire Targomo from each of those terminals with the remaining budget
+    // — this gives accurate road/transit coverage beyond the water crossing.
+    if (ferryStops.length > 0 && targomoData?.features) {
+      const secondaryResults = await Promise.allSettled(
+        ferryStops
+          .filter((stop) => totalTime - stop.tripSeconds >= 600) // ≥ 10 min remaining
+          .map((stop) =>
+            ferryTerminalPolygon(
+              stop.lat,
+              stop.lng,
+              totalTime - stop.tripSeconds,
+              lastMileSeconds,
+              16 * 3600 + stop.tripSeconds,
+              parseInt(dateStr),
+              key,
+            ),
+          ),
+      );
 
-        const ferryStops = await getReachableFerryStops(
-          lat, lng,
-          totalTime,
-          isoDateTime,
-        );
-
-        if (ferryStops.length > 0) {
-          const secondaryResults = await Promise.allSettled(
-            ferryStops
-              .filter((stop) => totalTime - stop.tripSeconds >= 300) // at least 5 min remaining
-              .map((stop) =>
-                ferryTerminalPolygon(
-                  stop.lat,
-                  stop.lng,
-                  totalTime - stop.tripSeconds,   // remaining budget
-                  lastMileSeconds,
-                  16 * 3600 + stop.tripSeconds,   // transit frame starts at arrival time
-                  parseInt(dateStr),
-                  key,
-                ),
-              ),
-          );
-
-          for (const result of secondaryResults) {
-            if (result.status === "fulfilled" && result.value) {
-              targomoData.features = [...targomoData.features, ...result.value];
-            }
-          }
+      for (const result of secondaryResults) {
+        if (result.status === "fulfilled" && result.value) {
+          targomoData.features = [...targomoData.features, ...result.value];
         }
-      } catch (e) {
-        // Ferry augmentation is best-effort — main Targomo polygon still returned
-        console.warn("Ferry augmentation failed:", e);
       }
     }
 

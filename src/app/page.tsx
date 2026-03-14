@@ -26,11 +26,34 @@ export default function Home() {
   const [stops, setStops] = useState<Stop[]>([]);
   const [loading, setLoading] = useState(false);
 
+  // Loading overlay visual state (decoupled from `loading` so exit can animate)
+  const [loadingVisible, setLoadingVisible] = useState(false);
+  const [loadingLeaving, setLoadingLeaving] = useState(false);
+  const loadingShowRef  = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const loadingLeaveRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   // Ferry warning toast state
   const [ferryWarning, setFerryWarning] = useState(false);
   const [ferryLeaving, setFerryLeaving] = useState(false);
   const ferryAutoTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const ferryLeaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Sync loading overlay: wait 200ms before showing (skips overlay for fast
+  // responses), then animate out smoothly when done.
+  useEffect(() => {
+    if (loading) {
+      if (loadingLeaveRef.current) clearTimeout(loadingLeaveRef.current);
+      setLoadingLeaving(false);
+      loadingShowRef.current = setTimeout(() => setLoadingVisible(true), 200);
+    } else {
+      if (loadingShowRef.current) clearTimeout(loadingShowRef.current);
+      setLoadingLeaving(true);
+      loadingLeaveRef.current = setTimeout(() => {
+        setLoadingVisible(false);
+        setLoadingLeaving(false);
+      }, 300);
+    }
+  }, [loading]);
 
   /** Animate the toast out, then remove it from DOM after the transition. */
   const dismissFerry = useCallback(() => {
@@ -58,10 +81,22 @@ export default function Home() {
     }
   }, []);
 
+  // Smart debounce: map clicks fire immediately; time/mode changes wait 400 ms.
+  // This prevents a burst of API calls when the user adjusts the dropdowns.
+  const fetchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const prevLocationRef  = useRef<typeof location>(null);
+
   useEffect(() => {
-    if (location) {
-      fetchIsochrone(location.lat, location.lng, transitTime, walkTime, lastMileMode);
-    }
+    if (!location) return;
+    const locationChanged = location !== prevLocationRef.current;
+    prevLocationRef.current = location;
+
+    if (fetchDebounceRef.current) clearTimeout(fetchDebounceRef.current);
+    fetchDebounceRef.current = setTimeout(
+      () => fetchIsochrone(location.lat, location.lng, transitTime, walkTime, lastMileMode),
+      locationChanged ? 0 : 400,
+    );
+    return () => { if (fetchDebounceRef.current) clearTimeout(fetchDebounceRef.current); };
   }, [location, transitTime, walkTime, lastMileMode, fetchIsochrone]);
 
   // Show / hide ferry warning based on whether location is outside Østlandet
@@ -121,9 +156,21 @@ export default function Home() {
         onViewChange={handleViewChange}
       />
 
-      {loading && (
-        <div className="absolute inset-0 bg-white/20 backdrop-blur-[2px] z-[100] flex items-center justify-center">
-          <div className="bg-white p-5 rounded-2xl shadow-2xl flex items-center gap-3">
+      {loadingVisible && (
+        <div
+          className={`absolute inset-0 bg-white/20 backdrop-blur-[2px] z-[100] flex items-center justify-center ${
+            loadingLeaving
+              ? "animate-out fade-out duration-300"
+              : "animate-in fade-in duration-200"
+          }`}
+        >
+          <div
+            className={`bg-white p-5 rounded-2xl shadow-2xl flex items-center gap-3 ${
+              loadingLeaving
+                ? "animate-out fade-out zoom-out-75 duration-300"
+                : "animate-in fade-in zoom-in-75 duration-200"
+            }`}
+          >
             <div className="w-5 h-5 border-3 border-ink-primary border-t-transparent rounded-full animate-spin" />
             <span className="font-medium text-ink-primary text-sm">Beregner reisetid...</span>
           </div>

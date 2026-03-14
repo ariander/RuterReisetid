@@ -72,7 +72,7 @@ async function enturFerryTripSeconds(
         "ET-Client-Name": "ruter-reisetid-poc",
       },
       body: JSON.stringify({ query }),
-      signal: AbortSignal.timeout(8000),
+      signal: AbortSignal.timeout(5000),
     });
 
     if (!res.ok) return null;
@@ -93,12 +93,28 @@ async function enturFerryTripSeconds(
 }
 
 /**
+ * Bounding box for the Oslo fjord area.
+ * Ferry augmentation is only relevant here — skip entirely for other regions.
+ */
+const OSLO_FJORD_BOUNDS = {
+  latMin: 59.4, latMax: 60.2,
+  lngMin: 10.0, lngMax: 11.5,
+};
+
+/** Shortest possible ferry journey from anywhere in the Oslo area (minutes). */
+const MIN_FERRY_BUDGET_SECONDS = 20 * 60;
+
+/**
  * Find all Oslo-fjord ferry terminals reachable from (fromLat, fromLng) via a
  * ferry-inclusive journey within totalBudgetSeconds.
  *
+ * Returns an empty array immediately if:
+ *  - the source is outside the Oslo fjord area, or
+ *  - the total budget is too small to reach any ferry terminal
+ *
  * @param fromLat            User's source latitude
  * @param fromLng            User's source longitude
- * @param totalBudgetSeconds Total journey budget (transit + 2 × last-mile)
+ * @param totalBudgetSeconds Total journey budget (transit + last-mile)
  * @param isoDateTime        ISO 8601 departure time ("2026-03-16T16:00:00+01:00")
  * @returns Stops that are reachable, with the trip duration used to get there
  */
@@ -108,6 +124,15 @@ export async function getReachableFerryStops(
   totalBudgetSeconds: number,
   isoDateTime: string,
 ): Promise<ReachableFerryStop[]> {
+  const { latMin, latMax, lngMin, lngMax } = OSLO_FJORD_BOUNDS;
+  if (
+    fromLat < latMin || fromLat > latMax ||
+    fromLng < lngMin || fromLng > lngMax ||
+    totalBudgetSeconds < MIN_FERRY_BUDGET_SECONDS
+  ) {
+    return [];
+  }
+
   const results = await Promise.allSettled(
     OSLO_FERRY_STOPS.map(async (stop) => {
       const tripSec = await enturFerryTripSeconds(
