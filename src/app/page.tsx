@@ -20,8 +20,8 @@ function isOutsideOstlandet(lat: number, lng: number) {
 export default function Home() {
   const [location, setLocation] = useState<{ lat: number; lng: number; name: string } | null>(null);
   const [lastMileMode, setLastMileMode] = useState<"walk" | "scooter">("walk");
-  const [transitTime, setTransitTime] = useState(10);
-  const [walkTime, setWalkTime] = useState(5);
+  const [transitTime, setTransitTime] = useState(15);
+  const [walkTime, setWalkTime] = useState(10);
   const [isochrone, setIsochrone] = useState<any>(null);
   const [stops, setStops] = useState<Stop[]>([]);
   const [loading, setLoading] = useState(false);
