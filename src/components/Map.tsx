@@ -22,8 +22,8 @@ const STOP_COLORS: Record<string, string> = {
   rail:   "#003087",
 };
 
-/** Badge offset (px) between adjacent mode circles — 75 % of badge width gives 25 % overlap */
-const BADGE_OFFSET = 18;
+/** Badge offset (image-px) between adjacent mode squares — snug side by side */
+const BADGE_OFFSET = 22;
 
 export function MapView({ center, isochrone, stops, onMapClick, onViewChange }: MapViewProps) {
   const mapContainer = useRef<HTMLDivElement>(null);
@@ -94,12 +94,14 @@ export function MapView({ center, isochrone, stops, onMapClick, onViewChange }: 
     }
 
     /**
-     * Create a composite "badge" image: coloured circle + white SVG icon.
+     * Create a composite "badge" image: coloured rounded square + white SVG icon
+     * with built-in drop shadow.
      * Rendered at 2× for retina crispness; logical size = S/2.
      */
     async function createBadge(svgUrl: string, color: string): Promise<ImageData> {
-      const S = 48;         // canvas px  (logical 24 px @ pixelRatio 2)
-      const R = 20;         // circle radius
+      const S = 56;         // canvas px — extra room for shadow
+      const RECT = 40;      // rounded-square side
+      const RAD = 10;       // corner radius
       const STROKE = 3;
       const ICON = 24;      // inner icon draw-size
 
@@ -108,19 +110,39 @@ export function MapView({ center, isochrone, stops, onMapClick, onViewChange }: 
       canvas.height = S;
       const ctx = canvas.getContext("2d")!;
 
-      // Coloured circle with white border
+      const x = (S - RECT) / 2;
+      const y = (S - RECT) / 2 - 1;  // shift up slightly to make room for shadow below
+
+      // Drop shadow
+      ctx.save();
+      ctx.shadowColor = "rgba(0,0,0,0.3)";
+      ctx.shadowBlur = 6;
+      ctx.shadowOffsetX = 0;
+      ctx.shadowOffsetY = 3;
       ctx.beginPath();
-      ctx.arc(S / 2, S / 2, R, 0, Math.PI * 2);
+      ctx.roundRect(x, y, RECT, RECT, RAD);
       ctx.fillStyle = color;
       ctx.fill();
+      ctx.restore();
+
+      // Coloured rounded square (re-draw without shadow for crisp edges)
+      ctx.beginPath();
+      ctx.roundRect(x, y, RECT, RECT, RAD);
+      ctx.fillStyle = color;
+      ctx.fill();
+
+      // White border
+      ctx.beginPath();
+      ctx.roundRect(x, y, RECT, RECT, RAD);
       ctx.strokeStyle = "#ffffff";
       ctx.lineWidth = STROKE;
       ctx.stroke();
 
       // White SVG icon centred inside
       const icon = await loadImg(svgUrl);
-      const off = (S - ICON) / 2;
-      ctx.drawImage(icon, off, off, ICON, ICON);
+      const ix = (S - ICON) / 2;
+      const iy = y + (RECT - ICON) / 2;
+      ctx.drawImage(icon, ix, iy, ICON, ICON);
 
       return ctx.getImageData(0, 0, S, S);
     }
@@ -202,22 +224,8 @@ export function MapView({ center, isochrone, stops, onMapClick, onViewChange }: 
       });
 
       // ── Individual stops ─────────────────────────────────────────
-      // Drop shadow — only once per stop (modeIndex 0)
-      map.current?.addLayer({
-        id: "stops-shadow",
-        type: "circle",
-        source: "stops",
-        filter: ["all", ["!", ["has", "point_count"]], ["==", ["get", "modeIndex"], 0]],
-        paint: {
-          "circle-radius": 18,
-          "circle-color": "#20212B",
-          "circle-opacity": 0.25,
-          "circle-translate": [0, 3],
-          "circle-blur": 1,
-        },
-      });
-
-      // Composite badge (coloured circle + mode icon) — one per mode,
+      // Composite badge (coloured rounded square + mode icon) — one per mode,
+      // shadow is baked into the badge image.
       // offset horizontally so multi-mode stops fan out side-by-side.
       map.current?.addLayer({
         id: "stops-badge",
