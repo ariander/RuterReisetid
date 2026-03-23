@@ -37,6 +37,24 @@ export default function Home() {
   // Info popup state
   const [infoOpen, setInfoOpen] = useState(false);
 
+  // Onboarding modal state — shown on first visit
+  const [onboardingOpen, setOnboardingOpen] = useState(false);
+  const [onboardingLeaving, setOnboardingLeaving] = useState(false);
+
+  useEffect(() => {
+    const seen = localStorage.getItem("reisetid_onboarded");
+    if (!seen) setOnboardingOpen(true);
+  }, []);
+
+  const dismissOnboarding = useCallback(() => {
+    setOnboardingLeaving(true);
+    setTimeout(() => {
+      setOnboardingOpen(false);
+      setOnboardingLeaving(false);
+      localStorage.setItem("reisetid_onboarded", "1");
+    }, 350);
+  }, []);
+
   // Ferry warning toast state
   const [ferryWarning, setFerryWarning] = useState(false);
   const [ferryLeaving, setFerryLeaving] = useState(false);
@@ -303,6 +321,78 @@ export default function Home() {
           </div>
         </div>
       )}
+      {/* ── Onboarding modal ─────────────────────────────────────────── */}
+      {onboardingOpen && (
+        <div
+          className={`fixed inset-0 z-[300] flex items-center justify-center px-4 ${
+            onboardingLeaving
+              ? "animate-out fade-out duration-350"
+              : "animate-in fade-in duration-300"
+          }`}
+          style={{ background: "rgba(9,26,169,0.18)", backdropFilter: "blur(4px)" }}
+          onClick={dismissOnboarding}
+        >
+          <div
+            className={`relative bg-white rounded-3xl shadow-2xl max-w-sm w-full p-7 ${
+              onboardingLeaving
+                ? "animate-out fade-out zoom-out-95 duration-350"
+                : "animate-in fade-in zoom-in-95 duration-300"
+            }`}
+            style={{ animationTimingFunction: "cubic-bezier(.34,1.56,.64,1)" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Close button */}
+            <button
+              onClick={dismissOnboarding}
+              className="absolute top-4 right-4 w-8 h-8 rounded-full flex items-center justify-center text-ink-primary/30 hover:text-ink-primary/60 hover:bg-ink-primary/5 transition-all duration-150 text-xl leading-none"
+              aria-label="Lukk"
+            >
+              ×
+            </button>
+
+            {/* Logo / ikon */}
+            <div className="flex justify-center mb-5">
+              <Image src="/reisetid-logo.svg" alt="Reisetid" width={128} height={64} />
+            </div>
+
+            {/* Tittel */}
+            <h2 className="text-center font-bold text-ink-primary text-xl mb-2 leading-snug">
+              Hvor langt kommer du?
+            </h2>
+
+            {/* Ingress */}
+            <p className="text-center text-ink-primary/90 text-sm leading-relaxed mb-6">
+              Velg et sted på kartet, så tegner vi opp alt du kan nå med
+              kollektivtransport innen den tiden du setter.
+            </p>
+
+            {/* Steg */}
+            <ol className="space-y-3 mb-7">
+              {[
+                { n: "1", text: "Søk etter adresse eller trykk på kartet" },
+                { n: "2", text: "Juster maks reisetid etter behag" },
+                { n: "3", text: "Se det fargede området – alt innenfor er innen rekkevidde" },
+              ].map(({ n, text }) => (
+                <li key={n} className="flex items-start gap-3">
+                  <span className="shrink-0 w-5 h-5 rounded-full bg-[#091AA9] text-white text-xs font-bold flex items-center justify-center mt-0.5">
+                    {n}
+                  </span>
+                  <span className="text-sm text-ink-primary/75 leading-relaxed">{text}</span>
+                </li>
+              ))}
+            </ol>
+
+            {/* CTA */}
+            <button
+              onClick={dismissOnboarding}
+              className="w-full bg-[#091AA9] hover:bg-[#091AA9]/85 active:scale-[.98] text-white font-semibold text-sm rounded-full py-3 transition-all duration-150"
+            >
+              Kom i gang
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* ── Info popup (bottom-left) ─────────────────────────────────── */}
       <div
         className="fixed z-[120]"
@@ -337,7 +427,7 @@ export default function Home() {
             <p className="text-xs text-ink-primary/70 leading-relaxed mb-3">
               Ruter Reisetid er en proof-of-concept laget av{" "}
               <a href="mailto:arild.andersen@tetdigital.no" className="text-[#091AA9] no-underline hover:underline underline-offset-2 transition-all duration-200">Arild Andersen</a> i{" "}
-              <a href="https://tetdigital.no" target="_blank" rel="noopener noreferrer" className="text-[#091AA9] no-underline hover:underline underline-offset-2 transition-all duration-200">Tet Digital</a>. Appen viser isokron-kart, altså
+              <a href="https://tetdigital.no" target="_blank" rel="noopener noreferrer" className="text-[#091AA9] no-underline hover:underline underline-offset-2 transition-all duration-200">Tet Digital</a>. Appen viser isokron-kart, altså/var/folders/rq/9dbmd_kn2hzgg2z8gd2qdvl00000gn/T/simulator_screenshot_D802E783-F3FC-4BAE-BE10-7F27E772596D.png
               hvor langt du kan reise med kollektivtransport innen en gitt tid.
             </p>
 
