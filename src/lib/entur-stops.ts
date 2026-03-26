@@ -6,14 +6,14 @@ export interface Stop {
   modes: string[]; // all transport modes, sorted by priority
 }
 
-export async function getNearbyStops(lat: number, lng: number, distance = 1500): Promise<Stop[]> {
+export async function getNearbyStops(lat: number, lng: number, distance = 1500, maxRes = 500): Promise<Stop[]> {
   const query = `{
     nearest(
       latitude: ${lat}
       longitude: ${lng}
       maximumDistance: ${distance}
       filterByPlaceTypes: [stopPlace]
-      maximumResults: 200
+      maximumResults: ${maxRes}
     ) {
       edges {
         node {

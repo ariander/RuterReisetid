@@ -31,7 +31,7 @@ export default function Home() {
   // Loading overlay visual state (decoupled from `loading` so exit can animate)
   const [loadingVisible, setLoadingVisible] = useState(false);
   const [loadingLeaving, setLoadingLeaving] = useState(false);
-  const loadingShowRef  = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const loadingShowRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const loadingLeaveRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Info popup state
@@ -166,7 +166,7 @@ export default function Home() {
   // Smart debounce: map clicks fire immediately; time/mode changes wait 400 ms.
   // This prevents a burst of API calls when the user adjusts the dropdowns.
   const fetchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const prevLocationRef  = useRef<typeof location>(null);
+  const prevLocationRef = useRef<typeof location>(null);
 
   useEffect(() => {
     if (!location) return;
@@ -203,9 +203,19 @@ export default function Home() {
   // previously-loaded stops.  The fetch radius (3 km) is larger than
   // the viewport to prefetch surrounding areas.
   const stopsCacheRef = useRef<Map<string, Stop>>(new Map());
+  const lastFetchRef = useRef<{ lat: number; lng: number } | null>(null);
 
   const handleViewChange = useCallback((lat: number, lng: number) => {
-    getNearbyStops(lat, lng, 8000).then((newStops) => {
+    // Determine if we've moved significantly from the last wide-radius fetch
+    // ~0.02 deg lat/lng is roughly 2.2 km.
+    const last = lastFetchRef.current;
+    const dx = lat - (last?.lat ?? 0);
+    const dy = lng - (last?.lng ?? 0);
+    const distSq = dx * dx + dy * dy;
+    const movedSignificantly = !last || distSq > 0.0004;
+
+    // 1. Eagerly fetch a smaller radius (approx viewport) for immediate pop-in
+    getNearbyStops(lat, lng, 3000, 400).then((newStops) => {
       const cache = stopsCacheRef.current;
       let changed = false;
       for (const s of newStops) {
@@ -216,6 +226,26 @@ export default function Home() {
       }
       if (changed) {
         setStops(Array.from(cache.values()));
+      }
+
+      // 2. Background fetch wider radius to cache remaining perimeter out to 8km
+      // We skip this if they haven't moved far from the last 8km fetch center.
+      if (movedSignificantly) {
+        lastFetchRef.current = { lat, lng };
+        setTimeout(() => {
+          getNearbyStops(lat, lng, 8000, 2000).then((widerStops) => {
+            let updated = false;
+            for (const s of widerStops) {
+              if (!cache.has(s.id)) {
+                cache.set(s.id, s);
+                updated = true;
+              }
+            }
+            if (updated) {
+              setStops(Array.from(cache.values()));
+            }
+          }).catch(console.error);
+        }, 300); // small delay to clear thread
       }
     }).catch(console.error);
   }, []);
@@ -235,11 +265,10 @@ export default function Home() {
             <SearchBar onSelect={setLocationAndDeactivateGeo} />
             <button
               onClick={handleGeolocate}
-              className={`shrink-0 w-9 h-9 rounded-full flex items-center justify-center transition-all duration-200 ${
-                geoActive
+              className={`shrink-0 w-9 h-9 rounded-full flex items-center justify-center transition-all duration-200 ${geoActive
                   ? "bg-[#091AA9]/10"
                   : "hover:bg-ink-primary/5 active:scale-95"
-              }`}
+                }`}
               aria-label="Min posisjon"
             >
               <img
@@ -247,9 +276,8 @@ export default function Home() {
                 alt=""
                 width={20}
                 height={20}
-                className={`transition-all duration-200 ${
-                  geoActive ? "opacity-100 scale-110" : "opacity-40 grayscale"
-                }`}
+                className={`transition-all duration-200 ${geoActive ? "opacity-100 scale-110" : "opacity-40 grayscale"
+                  }`}
               />
             </button>
           </div>
@@ -277,18 +305,16 @@ export default function Home() {
 
       {loadingVisible && (
         <div
-          className={`absolute inset-0 bg-white/20 backdrop-blur-[2px] z-[100] flex items-center justify-center ${
-            loadingLeaving
+          className={`absolute inset-0 bg-white/20 backdrop-blur-[2px] z-[100] flex items-center justify-center ${loadingLeaving
               ? "animate-out fade-out duration-300"
               : "animate-in fade-in duration-200"
-          }`}
+            }`}
         >
           <div
-            className={`bg-white p-5 rounded-2xl shadow-2xl flex items-center gap-3 ${
-              loadingLeaving
+            className={`bg-white p-5 rounded-2xl shadow-2xl flex items-center gap-3 ${loadingLeaving
                 ? "animate-out fade-out zoom-out-75 duration-300"
                 : "animate-in fade-in zoom-in-75 duration-200"
-            }`}
+              }`}
           >
             <div className="w-5 h-5 border-3 border-ink-primary border-t-transparent rounded-full animate-spin" />
             <span className="font-medium text-ink-primary text-sm">Beregner reisetid...</span>
@@ -298,11 +324,10 @@ export default function Home() {
 
       {ferryWarning && (
         <div
-          className={`fixed left-1/2 -translate-x-1/2 z-[200] w-full max-w-sm px-4 duration-350 ${
-            ferryLeaving
+          className={`fixed left-1/2 -translate-x-1/2 z-[200] w-full max-w-sm px-4 duration-350 ${ferryLeaving
               ? "animate-out fade-out slide-out-to-bottom-4"
               : "animate-in fade-in slide-in-from-bottom-4"
-          }`}
+            }`}
           style={{ bottom: "calc(env(safe-area-inset-bottom) + 1.5rem)" }}
         >
           <div className="bg-white/90 backdrop-blur-md rounded-2xl shadow-xl px-4 py-3 flex items-start gap-3 border border-ink-primary/10">
@@ -324,20 +349,18 @@ export default function Home() {
       {/* ── Onboarding modal ─────────────────────────────────────────── */}
       {onboardingOpen && (
         <div
-          className={`fixed inset-0 z-[300] flex items-center justify-center px-4 ${
-            onboardingLeaving
+          className={`fixed inset-0 z-[300] flex items-center justify-center px-4 ${onboardingLeaving
               ? "animate-out fade-out duration-350"
               : "animate-in fade-in duration-300"
-          }`}
+            }`}
           style={{ background: "rgba(9,26,169,0.18)", backdropFilter: "blur(4px)" }}
           onClick={dismissOnboarding}
         >
           <div
-            className={`relative bg-white rounded-3xl shadow-2xl max-w-sm w-full p-7 ${
-              onboardingLeaving
+            className={`relative bg-white rounded-3xl shadow-2xl max-w-sm w-full p-7 ${onboardingLeaving
                 ? "animate-out fade-out zoom-out-95 duration-350"
                 : "animate-in fade-in zoom-in-95 duration-300"
-            }`}
+              }`}
             style={{ animationTimingFunction: "cubic-bezier(.34,1.56,.64,1)" }}
             onClick={(e) => e.stopPropagation()}
           >
@@ -403,11 +426,10 @@ export default function Home() {
       >
         {/* Expanded info box — slides in from left */}
         <div
-          className={`absolute bottom-0 w-72 mb-12 ${
-            infoOpen
+          className={`absolute bottom-0 w-72 mb-12 ${infoOpen
               ? "pointer-events-auto"
               : "pointer-events-none"
-          }`}
+            }`}
           style={{
             left: infoOpen ? "0px" : "-320px",
             transition: "left 250ms cubic-bezier(.4,0,.2,1)",
@@ -427,8 +449,7 @@ export default function Home() {
             <p className="text-xs text-ink-primary/70 leading-relaxed mb-3">
               Ruter Reisetid er en proof-of-concept laget av{" "}
               <a href="mailto:arild.andersen@tetdigital.no" className="text-[#091AA9] no-underline hover:underline underline-offset-2 transition-all duration-200">Arild Andersen</a> i{" "}
-              <a href="https://tetdigital.no" target="_blank" rel="noopener noreferrer" className="text-[#091AA9] no-underline hover:underline underline-offset-2 transition-all duration-200">Tet Digital</a>. Appen viser isokron-kart, altså/var/folders/rq/9dbmd_kn2hzgg2z8gd2qdvl00000gn/T/simulator_screenshot_D802E783-F3FC-4BAE-BE10-7F27E772596D.png
-              hvor langt du kan reise med kollektivtransport innen en gitt tid.
+              <a href="https://tetdigital.no" target="_blank" rel="noopener noreferrer" className="text-[#091AA9] no-underline hover:underline underline-offset-2 transition-all duration-200">Tet Digital</a>. Appen visualiserer dette med et isokron-kart, som viser hvor langt du kan reise med kollektivtransport innen en gitt tid.
             </p>
 
             <h4 className="font-medium text-ink-primary text-xs mb-1.5">API-er</h4>
@@ -476,11 +497,10 @@ export default function Home() {
         {/* Toggle button */}
         <button
           onClick={() => setInfoOpen((o) => !o)}
-          className={`w-10 h-10 rounded-full flex items-center justify-center shadow-lg transition-all duration-200 ${
-            infoOpen
+          className={`w-10 h-10 rounded-full flex items-center justify-center shadow-lg transition-all duration-200 ${infoOpen
               ? "bg-[#313663] scale-95"
               : "bg-white/85 backdrop-blur-xl hover:bg-white active:scale-95"
-          }`}
+            }`}
           aria-label="POC info"
         >
           <img
@@ -488,9 +508,8 @@ export default function Home() {
             alt=""
             width={20}
             height={20}
-            className={`transition-all duration-200 ${
-              infoOpen ? "brightness-0 invert" : "opacity-60"
-            }`}
+            className={`transition-all duration-200 ${infoOpen ? "brightness-0 invert" : "opacity-60"
+              }`}
           />
         </button>
       </div>

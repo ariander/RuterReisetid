@@ -186,44 +186,50 @@ export function MapView({ center, isochrone, stops, onMapClick, onViewChange }: 
         paint: { "fill-color": "#07A85A", "fill-opacity": 0.25 },
       });
 
-      // ── Stops source with clustering ─────────────────────────────
+      // ── Stops source ─────────────────────────────
       map.current?.addSource("stops", {
         type: "geojson",
         data: { type: "FeatureCollection", features: [] },
-        cluster: true,
-        clusterMaxZoom: 13,
-        clusterRadius: 40,
       });
 
-      // Cluster bubble
-      map.current?.addLayer({
-        id: "stops-cluster",
-        type: "circle",
-        source: "stops",
-        filter: ["has", "point_count"],
-        paint: {
-          "circle-color": "#272D60",
-          "circle-radius": ["step", ["get", "point_count"], 12, 5, 16, 20, 20],
-          "circle-opacity": 0.85,
-        },
-      });
-      // Cluster count label
-      map.current?.addLayer({
-        id: "stops-cluster-count",
-        type: "symbol",
-        source: "stops",
-        filter: ["has", "point_count"],
-        layout: {
-          "text-field": ["get", "point_count_abbreviated"],
-          "text-size": 11,
-          "text-font": ["TID UI Bold"],
-        },
-        paint: {
-          "text-color": "#ffffff",
-        },
+      // ── Dot Layers (Zoom 8 to 12) ──────────────────────────────
+      const dotOffsets = [
+        { count: 1, index: 0, offset: [0, 0] },
+        { count: 2, index: 0, offset: [-3, 0] },
+        { count: 2, index: 1, offset: [3, 0] },
+        { count: 3, index: 0, offset: [-6, 0] },
+        { count: 3, index: 1, offset: [0, 0] },
+        { count: 3, index: 2, offset: [6, 0] },
+      ];
+
+      dotOffsets.forEach(({ count, index, offset }) => {
+        map.current?.addLayer({
+          id: `stops-dot-${count}-${index}`,
+          type: "circle",
+          source: "stops",
+          minzoom: 8,
+          maxzoom: 12,
+          filter: ["all", ["==", ["get", "modeCount"], count], ["==", ["get", "modeIndex"], index]],
+          paint: {
+            "circle-radius": 3.5,
+            "circle-color": [
+              "match", ["get", "mode"],
+              "metro", STOP_COLORS.metro,
+              "tram",  STOP_COLORS.tram,
+              "bus",   STOP_COLORS.bus,
+              "coach", STOP_COLORS.coach,
+              "rail",  STOP_COLORS.rail,
+              "water", STOP_COLORS.water,
+              STOP_COLORS.bus, // fallback
+            ],
+            "circle-stroke-width": 1.5,
+            "circle-stroke-color": "#ffffff",
+            "circle-translate": offset as [number, number],
+          },
+        });
       });
 
-      // ── Individual stops ─────────────────────────────────────────
+      // ── Badge Layer (Zoom >= 12) ──────────────────────────────
       // Composite badge (coloured rounded square + mode icon) — one per mode,
       // shadow is baked into the badge image.
       // offset horizontally so multi-mode stops fan out side-by-side.
@@ -231,7 +237,7 @@ export function MapView({ center, isochrone, stops, onMapClick, onViewChange }: 
         id: "stops-badge",
         type: "symbol",
         source: "stops",
-        filter: ["!", ["has", "point_count"]],
+        minzoom: 12,
         layout: {
           "icon-image": [
             "match", ["get", "mode"],
@@ -277,7 +283,7 @@ export function MapView({ center, isochrone, stops, onMapClick, onViewChange }: 
         id: "stops-label",
         type: "symbol",
         source: "stops",
-        filter: ["all", ["!", ["has", "point_count"]], ["==", ["get", "modeIndex"], 0]],
+        filter: ["==", ["get", "modeIndex"], 0],
         minzoom: 13,
         layout: {
           "text-field": ["get", "name"],
@@ -300,30 +306,6 @@ export function MapView({ center, isochrone, stops, onMapClick, onViewChange }: 
 
     map.current.on("moveend", () => {
       fireViewChange();
-    });
-
-    // Zoom into cluster on click
-    map.current.on("click", "stops-cluster", (e) => {
-      const features = map.current?.queryRenderedFeatures(e.point, { layers: ["stops-cluster"] });
-      if (!features?.length) return;
-      const clusterId = features[0].properties?.cluster_id;
-      const source = map.current?.getSource("stops") as maplibre.GeoJSONSource;
-      source.getClusterExpansionZoom(clusterId).then((zoom) => {
-        if (zoom == null || !map.current) return;
-        map.current.easeTo({
-          center: (features[0].geometry as any).coordinates as [number, number],
-          zoom,
-        });
-      }).catch(() => {});
-      e.originalEvent.stopPropagation();
-    });
-
-    // Pointer cursor on clusters
-    map.current.on("mouseenter", "stops-cluster", () => {
-      if (map.current) map.current.getCanvas().style.cursor = "pointer";
-    });
-    map.current.on("mouseleave", "stops-cluster", () => {
-      if (map.current) map.current.getCanvas().style.cursor = "";
     });
 
     // General map click → place pin
