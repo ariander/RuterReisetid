@@ -207,7 +207,7 @@ export function MapView({ center, isochrone, stops, onMapClick, onViewChange }: 
               id: `stops-dot-${count}-${index}`,
               type: "circle",
               source: "stops",
-              minzoom: 9,
+              minzoom: 10,
               maxzoom: 13,
               filter: ["all", ["==", ["get", "modeCount"], count], ["==", ["get", "modeIndex"], index]],
               paint: {
