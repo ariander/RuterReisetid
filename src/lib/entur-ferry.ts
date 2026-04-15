@@ -24,8 +24,11 @@ export interface ReachableFerryStop extends FerryStop {
  * Coordinates point to the ferry dock/terminal itself.
  */
 const OSLO_FERRY_STOPS: FerryStop[] = [
-  // Nesoddbåten (B10) — Aker Brygge → Nesoddtangen (year-round)
+  // Nesoddbåten (B10) — Aker Brygge ↔ Nesoddtangen (year-round)
   { name: "Nesoddtangen",  lat: 59.8707, lng: 10.6570 },
+  // Mainland terminals — reachable *from* Nesodden / islands by ferry
+  { name: "Aker Brygge",   lat: 59.9108, lng: 10.7274 },
+  { name: "Rådhusbrygga",  lat: 59.9085, lng: 10.7327 },
   // Bunnefjord ferries (B30 / B31 / B32 — year-round)
   { name: "Steilene",      lat: 59.7970, lng: 10.5671 },
   { name: "Håøya",         lat: 59.7360, lng: 10.5750 },

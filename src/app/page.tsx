@@ -7,6 +7,18 @@ import { TimeSelector } from "@/components/TimeSelector";
 import { getIsochrone } from "@/lib/targomo";
 import { getNearbyStops, type Stop } from "@/lib/entur-stops";
 import { tileKey, TILE_RES } from "@/lib/stops-cache";
+
+// Ferry terminals separated from mainland by water — Entur's road-distance
+// nearest-query won't return these from tile centers on the other side of the fjord.
+// Coordinates and IDs verified against Entur NSR.
+const FERRY_TERMINAL_STOPS: Stop[] = [
+  { id: "NSR:StopPlace:58368", name: "Nesoddtangen", lat: 59.870772, lng: 10.657071, modes: ["water", "bus"] },
+  { id: "NSR:StopPlace:58382", name: "Aker brygge",  lat: 59.910730, lng: 10.729590, modes: ["water"] },
+  { id: "NSR:StopPlace:4434",  name: "Gressholmen",  lat: 59.884530, lng: 10.724770, modes: ["water"] },
+  { id: "NSR:StopPlace:4443",  name: "Langøyene",    lat: 59.871439, lng: 10.725556, modes: ["water"] },
+  { id: "NSR:StopPlace:5400",  name: "Søndre Langåra", lat: 59.753420, lng: 10.564630, modes: ["water"] },
+  { id: "NSR:StopPlace:5408",  name: "Lågøya",       lat: 59.736740, lng: 10.568100, modes: ["water"] },
+];
 import Image from "next/image";
 
 /**
@@ -200,7 +212,11 @@ export default function Home() {
   }, [location, dismissFerry]);
 
   // ── Accumulated stops (in-memory, keyed by stop ID) ────────────
-  const stopsCacheRef = useRef<Map<string, Stop>>(new Map());
+  // Seed with hardcoded ferry terminals that won't be returned by tile queries
+  // (Entur's nearest-query uses road distance, so stops across fjords are missed).
+  const stopsCacheRef = useRef<Map<string, Stop>>(
+    new Map(FERRY_TERMINAL_STOPS.map((s) => [s.id, s]))
+  );
   // Track which tiles have already been fetched this session to avoid
   // duplicate network calls (IndexedDB cache handles cross-session dedup).
   const fetchedTilesRef = useRef<Set<string>>(new Set());
@@ -449,7 +465,7 @@ export default function Home() {
           }}
         >
           <div className="bg-white/85 backdrop-blur-xl rounded-2xl shadow-xl border border-ink-primary/10 p-4">
-            <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center justify-between mb-1">
               <h3 className="font-semibold text-ink-primary text-sm">Om denne POC-en</h3>
               <button
                 onClick={() => setInfoOpen(false)}
@@ -460,12 +476,10 @@ export default function Home() {
               </button>
             </div>
             <p className="text-xs text-ink-primary/70 leading-relaxed mb-3">
-              Ruter Reisetid er en proof-of-concept laget av{" "}
-              <a href="mailto:arild.andersen@tetdigital.no" className="text-[#091AA9] no-underline hover:underline underline-offset-2 transition-all duration-200">Arild Andersen</a> i{" "}
-              <a href="https://tetdigital.no" target="_blank" rel="noopener noreferrer" className="text-[#091AA9] no-underline hover:underline underline-offset-2 transition-all duration-200">Tet Digital</a>. Appen visualiserer dette med et isokron-kart, som viser hvor langt du kan reise med kollektivtransport innen en gitt tid.
+              Ruter Reisetid er en proof-of-concept for å visualiserer hvor langt man kan reise med kollektivtransport inn et valgt tidsvindu. 
             </p>
 
-            <h4 className="font-medium text-ink-primary text-xs mb-1.5">API-er</h4>
+            <h4 className="font-bold text-ink-primary text-xs mb-1.5">API-er og tjenester som er brukt POC-en:</h4>
             <ul className="text-xs text-ink-primary/70 leading-relaxed mb-3 space-y-0.5">
               <li className="flex gap-1.5">
                 <span className="shrink-0">•</span>
@@ -481,7 +495,7 @@ export default function Home() {
               </li>
             </ul>
 
-            <h4 className="font-medium text-ink-primary text-xs mb-1.5">Forutsetninger</h4>
+            <h4 className="font-bold text-ink-primary text-xs mb-1.5">Forutsetninger</h4>
             <ul className="text-xs text-ink-primary/70 leading-relaxed space-y-0.5">
               <li className="flex gap-1.5">
                 <span className="shrink-0">•</span>
@@ -504,6 +518,11 @@ export default function Home() {
                 <span>Fergeberegning kun kalibrert for Oslofjorden</span>
               </li>
             </ul>
+            <p className="text-xs text-ink-primary/70 leading-relaxed mt-3">
+              Laget av{" "}
+              <a href="mailto:arild.andersen@tetdigital.no" className="text-[#091AA9] no-underline hover:underline underline-offset-2 transition-all duration-200">Arild Andersen</a> i{" "}
+              <a href="https://tetdigital.no" target="_blank" rel="noopener noreferrer" className="text-[#091AA9] no-underline hover:underline underline-offset-2 transition-all duration-200">Tet Digital</a>. 
+            </p>
           </div>
         </div>
 

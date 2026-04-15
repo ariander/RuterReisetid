@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getReachableFerryStops } from "@/lib/entur-ferry";
+import { union } from "@turf/union";
+import type { Feature, FeatureCollection, Polygon, MultiPolygon } from "geojson";
 
 /**
  * Fire a Targomo polygon request from a ferry terminal with the remaining
@@ -144,6 +146,14 @@ export async function POST(req: NextRequest) {
       `${dateStr.slice(0, 4)}-${dateStr.slice(4, 6)}-${dateStr.slice(6, 8)}` +
       `T16:00:00+01:00`;
 
+    console.log("[isochrone] params:", {
+      lat, lng,
+      transitMinutes, walkMinutes, lastMileMode,
+      totalTime, transitTimeSeconds, lastMileSeconds,
+      transitFrameDate: parseInt(dateStr),
+      transitFrameTime: "16:00",
+    });
+
     // ── Fire main Targomo + Entur ferry checks in parallel ───────────────────
     // getReachableFerryStops returns [] immediately if source is outside the
     // Oslo fjord area or the budget is too small, so it's safe to always call.
@@ -157,7 +167,17 @@ export async function POST(req: NextRequest) {
         },
       ),
       useTransit
-        ? getReachableFerryStops(lat, lng, totalTime, isoDateTime).catch((e) => {
+        ? getReachableFerryStops(lat, lng, totalTime, isoDateTime).then((stops) => {
+            console.log("[isochrone] ferry stops found:", stops.map(s => ({
+              name: s.name,
+              tripSeconds: s.tripSeconds,
+              tripMin: Math.round(s.tripSeconds / 60),
+              remainingSeconds: totalTime - s.tripSeconds,
+              remainingMin: Math.round((totalTime - s.tripSeconds) / 60),
+              arrivalFrameTime: `${Math.floor((16 * 3600 + s.tripSeconds) / 3600)}:${String(Math.round(((16 * 3600 + s.tripSeconds) % 3600) / 60)).padStart(2, "0")}`,
+            })));
+            return stops;
+          }).catch((e) => {
             console.warn("Ferry stops check failed:", e);
             return [];
           })
@@ -180,7 +200,13 @@ export async function POST(req: NextRequest) {
     if (ferryStops.length > 0 && targomoData?.features) {
       const secondaryResults = await Promise.allSettled(
         ferryStops
-          .filter((stop) => totalTime - stop.tripSeconds >= 600) // ≥ 10 min remaining
+          .filter((stop) => {
+            const remaining = totalTime - stop.tripSeconds;
+            if (remaining < 600) {
+              console.log(`[isochrone] skipping ${stop.name}: only ${Math.round(remaining/60)} min remaining (< 10 min threshold)`);
+            }
+            return remaining >= 600;
+          })
           .map((stop) =>
             ferryTerminalPolygon(
               stop.lat,
@@ -198,6 +224,20 @@ export async function POST(req: NextRequest) {
         if (result.status === "fulfilled" && result.value) {
           targomoData.features = [...targomoData.features, ...result.value];
         }
+      }
+    }
+
+    // Merge all polygon features into one so overlapping areas don't double-paint
+    if (targomoData?.features?.length > 1) {
+      try {
+        const fc: FeatureCollection<Polygon | MultiPolygon> = {
+          type: "FeatureCollection",
+          features: targomoData.features as Feature<Polygon | MultiPolygon>[],
+        };
+        const merged = union(fc);
+        targomoData.features = merged ? [merged] : targomoData.features;
+      } catch {
+        // union failed (e.g. invalid geometry) — return unmerged, still works
       }
     }
 
