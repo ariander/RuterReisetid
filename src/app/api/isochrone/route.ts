@@ -2,6 +2,14 @@ import { NextRequest, NextResponse } from "next/server";
 import { getReachableFerryStops } from "@/lib/entur-ferry";
 import { union } from "@turf/union";
 import type { Feature, FeatureCollection, Polygon, MultiPolygon } from "geojson";
+import { Ratelimit } from "@upstash/ratelimit";
+import { Redis } from "@upstash/redis";
+
+const ratelimit = new Ratelimit({
+  redis: Redis.fromEnv(),
+  limiter: Ratelimit.slidingWindow(20, "1 m"), // 20 requests per minute per IP
+  analytics: false,
+});
 
 /**
  * Fire a Targomo polygon request from a ferry terminal with the remaining
@@ -66,13 +74,43 @@ async function ferryTerminalPolygon(
 }
 
 export async function POST(req: NextRequest) {
+  // ── Origin check ────────────────────────────────────────────────────────────
+  const origin = req.headers.get("origin") ?? "";
+  const allowedOrigins = [
+    "https://ruter-reisetid.vercel.app",
+    "http://localhost:3000",
+    "http://localhost:3001",
+  ];
+  if (!allowedOrigins.some((o) => origin.startsWith(o))) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  // ── Rate limiting (20 req / min per IP) ─────────────────────────────────────
+  const ip = req.headers.get("x-forwarded-for")?.split(",")[0].trim() ?? "unknown";
+  const { success } = await ratelimit.limit(ip);
+  if (!success) {
+    return NextResponse.json({ error: "Too many requests" }, { status: 429 });
+  }
+
   const key = process.env.TARGOMO_KEY;
   if (!key) {
     return NextResponse.json({ error: "Targomo key missing" }, { status: 500 });
   }
 
   try {
-    const { lat, lng, transitMinutes, walkMinutes, lastMileMode } = await req.json();
+    const body = await req.json();
+    const { lat, lng, transitMinutes, walkMinutes, lastMileMode } = body;
+
+    // ── Input validation ───────────────────────────────────────────────────────
+    if (
+      typeof lat !== "number" || lat < 57 || lat > 72 ||       // Norway bounds
+      typeof lng !== "number" || lng < 4  || lng > 32 ||
+      typeof transitMinutes !== "number" || transitMinutes < 0 || transitMinutes > 120 ||
+      typeof walkMinutes !== "number"    || walkMinutes < 0    || walkMinutes > 60 ||
+      !["walk", "scooter"].includes(lastMileMode)
+    ) {
+      return NextResponse.json({ error: "Invalid parameters" }, { status: 400 });
+    }
     const walkTimeSeconds = walkMinutes * 60;
     const transitTimeSeconds = transitMinutes * 60;
 
