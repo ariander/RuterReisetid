@@ -158,6 +158,9 @@ export function MapView({ center, isochrone, stops, onMapClick, onViewChange }: 
           // height before the viewport is fully calculated, leaving a gap at the bottom.
           requestAnimationFrame(() => map.current?.resize());
 
+          // Kick off stop fetching immediately — don't wait for badge images to load.
+          fireViewChange();
+
           // ── Create composite stop-badge images ───────────────────────
           const badges: [string, string, string][] = [
             ["stop-metro", "/icons/metro.svg", STOP_COLORS.metro],
@@ -324,8 +327,7 @@ export function MapView({ center, isochrone, stops, onMapClick, onViewChange }: 
             },
           });
 
-          // All sources & layers ready — now trigger the initial viewport fetch
-          fireViewChange();
+          // Sources & layers ready — stops are already being fetched (started above).
         });
 
         map.current.on("moveend", () => {
