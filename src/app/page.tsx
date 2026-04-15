@@ -6,6 +6,7 @@ import { SearchBar } from "@/components/SearchBar";
 import { TimeSelector } from "@/components/TimeSelector";
 import { getIsochrone } from "@/lib/targomo";
 import { getNearbyStops, type Stop } from "@/lib/entur-stops";
+import { tileKey, TILE_RES } from "@/lib/stops-cache";
 import Image from "next/image";
 
 /**
@@ -198,56 +199,68 @@ export default function Home() {
     };
   }, [location, dismissFerry]);
 
-  // ── Accumulated stops cache ─────────────────────────────────────
-  // Stops are merged into a Map keyed by ID so panning never loses
-  // previously-loaded stops.  The fetch radius (3 km) is larger than
-  // the viewport to prefetch surrounding areas.
+  // ── Accumulated stops (in-memory, keyed by stop ID) ────────────
   const stopsCacheRef = useRef<Map<string, Stop>>(new Map());
-  const lastFetchRef = useRef<{ lat: number; lng: number } | null>(null);
+  // Track which tiles have already been fetched this session to avoid
+  // duplicate network calls (IndexedDB cache handles cross-session dedup).
+  const fetchedTilesRef = useRef<Set<string>>(new Set());
 
-  const handleViewChange = useCallback((lat: number, lng: number) => {
-    // Determine if we've moved significantly from the last wide-radius fetch
-    // ~0.02 deg lat/lng is roughly 2.2 km.
-    const last = lastFetchRef.current;
-    const dx = lat - (last?.lat ?? 0);
-    const dy = lng - (last?.lng ?? 0);
-    const distSq = dx * dx + dy * dy;
-    const movedSignificantly = !last || distSq > 0.0004;
+  const handleViewChange = useCallback((
+    bounds: { n: number; s: number; e: number; w: number },
+    zoom: number,
+  ) => {
+    // Dots are not rendered below zoom 9, so skip fetching.
+    if (zoom < 9) return;
 
-    // 1. Eagerly fetch a smaller radius (approx viewport) for immediate pop-in
-    getNearbyStops(lat, lng, 3000, 400).then((newStops) => {
-      const cache = stopsCacheRef.current;
-      let changed = false;
-      for (const s of newStops) {
-        if (!cache.has(s.id)) {
-          cache.set(s.id, s);
-          changed = true;
+    // Collect tile centers within the current viewport bounds.
+    const tileLats: number[] = [];
+    const tileLngs: number[] = [];
+    for (
+      let lat = Math.round(bounds.s / TILE_RES) * TILE_RES;
+      lat <= bounds.n + TILE_RES;
+      lat = Math.round((lat + TILE_RES) * 10) / 10
+    ) {
+      tileLats.push(lat);
+    }
+    for (
+      let lng = Math.round(bounds.w / TILE_RES) * TILE_RES;
+      lng <= bounds.e + TILE_RES;
+      lng = Math.round((lng + TILE_RES) * 10) / 10
+    ) {
+      tileLngs.push(lng);
+    }
+
+    const stopsMap = stopsCacheRef.current;
+    const fetched  = fetchedTilesRef.current;
+
+    const pendingTiles: { lat: number; lng: number }[] = [];
+    for (const lat of tileLats) {
+      for (const lng of tileLngs) {
+        const key = tileKey(lat, lng);
+        if (!fetched.has(key)) {
+          fetched.add(key);
+          pendingTiles.push({ lat, lng });
         }
       }
-      if (changed) {
-        setStops(Array.from(cache.values()));
-      }
+    }
 
-      // 2. Background fetch wider radius to cache remaining perimeter out to 8km
-      // We skip this if they haven't moved far from the last 8km fetch center.
-      if (movedSignificantly) {
-        lastFetchRef.current = { lat, lng };
-        setTimeout(() => {
-          getNearbyStops(lat, lng, 8000, 2000).then((widerStops) => {
-            let updated = false;
-            for (const s of widerStops) {
-              if (!cache.has(s.id)) {
-                cache.set(s.id, s);
-                updated = true;
-              }
+    if (pendingTiles.length === 0) return;
+
+    // Fetch all new tiles in parallel; merge results as they arrive.
+    for (const { lat, lng } of pendingTiles) {
+      getNearbyStops(lat, lng, 8000, 500)
+        .then((newStops) => {
+          let changed = false;
+          for (const s of newStops) {
+            if (!stopsMap.has(s.id)) {
+              stopsMap.set(s.id, s);
+              changed = true;
             }
-            if (updated) {
-              setStops(Array.from(cache.values()));
-            }
-          }).catch(console.error);
-        }, 300); // small delay to clear thread
-      }
-    }).catch(console.error);
+          }
+          if (changed) setStops(Array.from(stopsMap.values()));
+        })
+        .catch(console.error);
+    }
   }, []);
 
   const handleMapClick = (lat: number, lng: number) =>

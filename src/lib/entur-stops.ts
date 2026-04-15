@@ -1,3 +1,5 @@
+import { tileKey, getCached, putCached } from "./stops-cache";
+
 export interface Stop {
   id: string;
   name: string;
@@ -7,6 +9,10 @@ export interface Stop {
 }
 
 export async function getNearbyStops(lat: number, lng: number, distance = 1500, maxRes = 500): Promise<Stop[]> {
+  const key = tileKey(lat, lng);
+  const cached = await getCached(key);
+  if (cached) return cached;
+
   const query = `{
     nearest(
       latitude: ${lat}
@@ -45,7 +51,7 @@ export async function getNearbyStops(lat: number, lng: number, distance = 1500, 
   const data = await res.json();
   const PRIORITY = ["metro", "rail", "tram", "water", "bus"];
 
-  return (data.data?.nearest?.edges ?? []).map((edge: any) => {
+  const stops = (data.data?.nearest?.edges ?? []).map((edge: any) => {
     const raw: string[] = Array.isArray(edge.node.place.transportMode)
       ? edge.node.place.transportMode
       : [edge.node.place.transportMode ?? "bus"];
@@ -65,4 +71,7 @@ export async function getNearbyStops(lat: number, lng: number, distance = 1500, 
       modes,
     };
   });
+
+  await putCached(key, stops);
+  return stops;
 }

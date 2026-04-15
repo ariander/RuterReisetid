@@ -10,7 +10,7 @@ interface MapViewProps {
   isochrone?: any;
   stops?: Stop[];
   onMapClick?: (lat: number, lng: number) => void;
-  onViewChange?: (lat: number, lng: number) => void;
+  onViewChange?: (bounds: { n: number; s: number; e: number; w: number }, zoom: number) => void;
 }
 
 const STOP_COLORS: Record<string, string> = {
@@ -77,8 +77,12 @@ export function MapView({ center, isochrone, stops, onMapClick, onViewChange }: 
 
         // Fetch stops based on current map center on load and after panning/zooming
         const fireViewChange = () => {
-          const c = map.current?.getCenter();
-          if (c) onViewChangeRef.current?.(c.lat, c.lng);
+          const b = map.current?.getBounds();
+          const z = map.current?.getZoom() ?? 0;
+          if (b) onViewChangeRef.current?.(
+            { n: b.getNorth(), s: b.getSouth(), e: b.getEast(), w: b.getWest() },
+            z,
+          );
         };
 
         // ── Image helpers ──────────────────────────────────────────────
@@ -207,11 +211,22 @@ export function MapView({ center, isochrone, stops, onMapClick, onViewChange }: 
               id: `stops-dot-${count}-${index}`,
               type: "circle",
               source: "stops",
-              minzoom: 10,
+              minzoom: 9,
               maxzoom: 13,
               filter: ["all", ["==", ["get", "modeCount"], count], ["==", ["get", "modeIndex"], index]],
               paint: {
-                "circle-radius": 3.5,
+                "circle-radius": [
+                  "interpolate", ["linear"], ["zoom"],
+                  9, 1.5,
+                  11, 2,
+                  12, 3.5,
+                ],
+                "circle-stroke-width": [
+                  "interpolate", ["linear"], ["zoom"],
+                  9, 0.25,
+                  11, 1,
+                  12, 1.5,
+                ],
                 "circle-color": [
                   "match", ["get", "mode"],
                   "metro", STOP_COLORS.metro,
@@ -222,8 +237,17 @@ export function MapView({ center, isochrone, stops, onMapClick, onViewChange }: 
                   "water", STOP_COLORS.water,
                   STOP_COLORS.bus, // fallback
                 ],
-                "circle-stroke-width": 1.5,
+                "circle-opacity": [
+                  "interpolate", ["linear"], ["zoom"],
+                  9, 0,
+                  10, 1,
+                ],
                 "circle-stroke-color": "#ffffff",
+                "circle-stroke-opacity": [
+                  "interpolate", ["linear"], ["zoom"],
+                  9, 0,
+                  10, 1,
+                ],
                 "circle-translate": offset as [number, number],
               },
             });
