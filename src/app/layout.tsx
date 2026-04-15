@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import localFont from "next/font/local";
 import "./globals.css";
+import { Analytics } from "@vercel/analytics/next";
 
 
 const tidFont = localFont({
@@ -54,6 +55,7 @@ export default function RootLayout({
     <html lang="no">
       <body className={`${tidFont.variable} antialiased font-sans`}>
         {children}
+        <Analytics />
       </body>
     </html>
   );

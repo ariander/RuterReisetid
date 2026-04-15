@@ -87,9 +87,16 @@ export async function POST(req: NextRequest) {
 
   // ── Rate limiting (20 req / min per IP) ─────────────────────────────────────
   const ip = req.headers.get("x-forwarded-for")?.split(",")[0].trim() ?? "unknown";
-  const { success } = await ratelimit.limit(ip);
+  const { success, remaining, reset } = await ratelimit.limit(ip);
+  const retryAfter = Math.ceil((reset - Date.now()) / 1000);
   if (!success) {
-    return NextResponse.json({ error: "Too many requests" }, { status: 429 });
+    return NextResponse.json({ error: "Too many requests" }, {
+      status: 429,
+      headers: {
+        "Retry-After": String(retryAfter),
+        "X-RateLimit-Remaining": "0",
+      },
+    });
   }
 
   const key = process.env.TARGOMO_KEY;
