@@ -5,8 +5,7 @@ import { MapView } from "@/components/Map";
 import { SearchBar } from "@/components/SearchBar";
 import { TimeSelector } from "@/components/TimeSelector";
 import { getIsochrone } from "@/lib/targomo";
-import { getNearbyStops, type Stop } from "@/lib/entur-stops";
-import { tileKey, TILE_RES } from "@/lib/stops-cache";
+import { getStopsInBounds, type Stop } from "@/lib/entur-stops";
 
 // Ferry terminals separated from mainland by water — Entur's road-distance
 // nearest-query won't return these from tile centers on the other side of the fjord.
@@ -212,71 +211,34 @@ export default function Home() {
   }, [location, dismissFerry]);
 
   // ── Accumulated stops (in-memory, keyed by stop ID) ────────────
-  // Seed with hardcoded ferry terminals that won't be returned by tile queries
-  // (Entur's nearest-query uses road distance, so stops across fjords are missed).
+  // Accumulated stops (in-memory, keyed by stop ID).
+  // Seeded with hardcoded ferry terminals that Entur's road-distance query misses.
   const stopsCacheRef = useRef<Map<string, Stop>>(
     new Map(FERRY_TERMINAL_STOPS.map((s) => [s.id, s]))
   );
-  // Track which tiles have already been fetched this session to avoid
-  // duplicate network calls (IndexedDB cache handles cross-session dedup).
+  // Tracks which tiles have been requested this session (IDB handles cross-session).
   const fetchedTilesRef = useRef<Set<string>>(new Set());
 
   const handleViewChange = useCallback((
     bounds: { n: number; s: number; e: number; w: number },
     zoom: number,
   ) => {
-    // Dots are not rendered below zoom 9, so skip fetching.
     if (zoom < 9) return;
-
-    // Collect tile centers within the current viewport bounds.
-    const tileLats: number[] = [];
-    const tileLngs: number[] = [];
-    for (
-      let lat = Math.round(bounds.s / TILE_RES) * TILE_RES;
-      lat <= bounds.n + TILE_RES;
-      lat = Math.round((lat + TILE_RES) * 10) / 10
-    ) {
-      tileLats.push(lat);
-    }
-    for (
-      let lng = Math.round(bounds.w / TILE_RES) * TILE_RES;
-      lng <= bounds.e + TILE_RES;
-      lng = Math.round((lng + TILE_RES) * 10) / 10
-    ) {
-      tileLngs.push(lng);
-    }
 
     const stopsMap = stopsCacheRef.current;
     const fetched  = fetchedTilesRef.current;
 
-    const pendingTiles: { lat: number; lng: number }[] = [];
-    for (const lat of tileLats) {
-      for (const lng of tileLngs) {
-        const key = tileKey(lat, lng);
-        if (!fetched.has(key)) {
-          fetched.add(key);
-          pendingTiles.push({ lat, lng });
+    // One Entur request covers the whole viewport — getStopsInBounds handles
+    // tile deduplication internally using the fetchedTiles set.
+    getStopsInBounds(bounds, fetched)
+      .then((newStops) => {
+        let changed = false;
+        for (const s of newStops) {
+          if (!stopsMap.has(s.id)) { stopsMap.set(s.id, s); changed = true; }
         }
-      }
-    }
-
-    if (pendingTiles.length === 0) return;
-
-    // Fetch all new tiles in parallel; merge results as they arrive.
-    for (const { lat, lng } of pendingTiles) {
-      getNearbyStops(lat, lng, 8000, 500)
-        .then((newStops) => {
-          let changed = false;
-          for (const s of newStops) {
-            if (!stopsMap.has(s.id)) {
-              stopsMap.set(s.id, s);
-              changed = true;
-            }
-          }
-          if (changed) setStops(Array.from(stopsMap.values()));
-        })
-        .catch(console.error);
-    }
+        if (changed) setStops(Array.from(stopsMap.values()));
+      })
+      .catch(console.error);
   }, []);
 
   const handleMapClick = (lat: number, lng: number) =>

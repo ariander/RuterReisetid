@@ -156,10 +156,12 @@ export function MapView({ center, isochrone, stops, onMapClick, onViewChange }: 
 
           // Force a resize after layout settles — iOS sometimes reads the container
           // height before the viewport is fully calculated, leaving a gap at the bottom.
-          requestAnimationFrame(() => map.current?.resize());
-
-          // Kick off stop fetching immediately — don't wait for badge images to load.
-          fireViewChange();
+          // fireViewChange is called inside the rAF so that getBounds() has correct
+          // dimensions after resize (on mobile, bounds are wrong before this runs).
+          requestAnimationFrame(() => {
+            map.current?.resize();
+            fireViewChange();
+          });
 
           // ── Create composite stop-badge images ───────────────────────
           const badges: [string, string, string][] = [
