@@ -77,6 +77,7 @@ export function SearchBar({ onSelect, autoFocus }: SearchBarProps) {
           className="h-10 pl-9 pr-3 bg-transparent border-none shadow-none rounded-xl text-sm focus-visible:ring-0 placeholder:text-ink-quinary"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter") e.preventDefault(); }}
           onFocus={() => setIsOpen(results.length > 0)}
         />
       </div>

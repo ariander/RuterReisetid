@@ -140,6 +140,8 @@
     @apply text-foreground;
     /* Warm beige matching Voyager map — hides the flash before map renders */
     background-color: #ede7df;
+    /* Prevent pull-to-refresh on mobile which would reload the page */
+    overscroll-behavior: none;
   }
   html {
     @apply font-sans;

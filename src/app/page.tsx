@@ -62,6 +62,17 @@ export default function Home() {
     if (seen) setOnboardingOpen(false);
   }, []);
 
+  // Diagnostikk: skille mellom full reload og React remount
+  useEffect(() => {
+    console.log("[Reisetid] komponent montert");
+    const onUnload = () => console.log("[Reisetid] side laster om (full reload)");
+    window.addEventListener("beforeunload", onUnload);
+    return () => {
+      console.log("[Reisetid] komponent avmontert (React remount)");
+      window.removeEventListener("beforeunload", onUnload);
+    };
+  }, []);
+
   const dismissOnboarding = useCallback(() => {
     setOnboardingLeaving(true);
     setTimeout(() => {
@@ -262,7 +273,7 @@ export default function Home() {
           <div className="flex items-center gap-3 pl-2">
             <Image src="/reisetid-logo.svg" alt="Reisetid" width={96} height={96} className="shrink-0" />
             <SearchBar onSelect={setLocationAndDeactivateGeo} />
-            <button
+            <button type="button" type="button"
               onClick={handleGeolocate}
               className={`shrink-0 w-9 h-9 rounded-full flex items-center justify-center transition-all duration-200 ${geoActive
                   ? "bg-ruter-accent/10"
@@ -335,7 +346,7 @@ export default function Home() {
               Fergeberegninger i denne POC-en er kun kalibrert for Oslofjorden.
               Resultater i dette området kan avvike.
             </p>
-            <button
+            <button type="button" type="button"
               onClick={dismissFerry}
               className="shrink-0 text-ink-primary/30 hover:text-ink-primary/60 transition-colors text-lg leading-none -mt-0.5"
               aria-label="Lukk"
@@ -360,7 +371,7 @@ export default function Home() {
             style={{ animationTimingFunction: "cubic-bezier(0.16, 1, 0.3, 1)" }}
           >
             {/* Hopp over */}
-            <button
+            <button type="button" type="button"
               onClick={dismissOnboarding}
               className="absolute top-4 right-4 text-xs text-ink-quinary hover:text-ink-secondary transition-colors px-2 py-1"
             >
@@ -385,7 +396,7 @@ export default function Home() {
             </div>
 
             {/* Steg-innhold — karusell-slide */}
-            <div style={{ clipPath: "inset(0 0 -100vh 0)" }}>
+            <div style={{ overflowX: "clip" }}>
               <div
                 className="flex transition-transform duration-300 ease-in-out"
                 style={{ transform: `translateX(${-(onboardingStep - 1) * 100}%)` }}
@@ -408,7 +419,7 @@ export default function Home() {
                       }}
                     />
                   </div>
-                  <button
+                  <button type="button" type="button"
                     onClick={() => {
                       setLocationAndDeactivateGeo({ lat: 59.9094, lng: 10.7430, name: "Dronningens gate 40, Oslo" });
                       onboardingStepChanged.current = true;
@@ -430,7 +441,7 @@ export default function Home() {
                   </p>
                   <div className="grid grid-cols-3 gap-2 mb-6">
                     {[10, 15, 20, 30, 45, 60].map((v) => (
-                      <button
+                      <button type="button" type="button"
                         key={v}
                         onClick={() => { setOnboardingTransit(v); setTransitTime(v); setTimeout(() => { onboardingStepChanged.current = true; setOnboardingStep(3); }, 400); }}
                         className={`py-3 rounded-xl text-sm font-medium transition-all duration-150 ${
@@ -455,7 +466,7 @@ export default function Home() {
                   </p>
                   <div className="grid grid-cols-3 gap-2 mb-6">
                     {[5, 10, 15, 20, 30].map((v) => (
-                      <button
+                      <button type="button" type="button"
                         key={v}
                         onClick={() => { setOnboardingWalk(v); setWalkTime(v); setTimeout(dismissOnboarding, 400); }}
                         className={`py-3 rounded-xl text-sm font-medium transition-all duration-150 ${
@@ -497,7 +508,7 @@ export default function Home() {
           <div className="bg-white/85 backdrop-blur-xl rounded-2xl shadow-xl border border-ink-primary/10 p-4">
             <div className="flex items-center justify-between mb-1">
               <h3 className="font-semibold text-ink-primary text-sm">Om denne POC-en</h3>
-              <button
+              <button type="button" type="button"
                 onClick={() => setInfoOpen(false)}
                 className="text-ink-primary/30 hover:text-ink-primary/60 transition-colors text-lg leading-none"
                 aria-label="Lukk"
@@ -557,7 +568,7 @@ export default function Home() {
         </div>
 
         {/* Toggle button */}
-        <button
+        <button type="button" type="button"
           onClick={() => setInfoOpen((o) => !o)}
           className={`w-10 h-10 rounded-full flex items-center justify-center shadow-lg transition-all duration-200 ${infoOpen
               ? "bg-[#313663] scale-95"
