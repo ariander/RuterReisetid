@@ -194,6 +194,16 @@ export function MapView({ center, isochrone, stops, onMapClick, onViewChange }: 
             source: "isochrone",
             paint: { "fill-color": "#07A85A", "fill-opacity": 0.25 },
           });
+          map.current?.addLayer({
+            id: "isochrone-outline",
+            type: "line",
+            source: "isochrone",
+            paint: {
+              "line-color": "#07A85A",
+              "line-opacity": 0.6,
+              "line-width": 1,
+            },
+          });
 
           // ── Stops source ─────────────────────────────
           map.current?.addSource("stops", {
@@ -222,7 +232,7 @@ export function MapView({ center, isochrone, stops, onMapClick, onViewChange }: 
               paint: {
                 "circle-radius": [
                   "interpolate", ["linear"], ["zoom"],
-                  9, 1.5,
+                  9, 1,
                   11, 2,
                   12, 3.5,
                 ],
@@ -357,12 +367,30 @@ export function MapView({ center, isochrone, stops, onMapClick, onViewChange }: 
     createMarker(center.lng, center.lat);
   }, [center, createMarker]);
 
-  // Update isochrone
+  // Update isochrone + zoom to fit
   useEffect(() => {
     if (!map.current || !mapLoaded.current || !isochrone) return;
     const source = map.current.getSource("isochrone") as maplibre.GeoJSONSource;
     if (!source) return;
     source.setData(isochrone);
+
+    // Compute bounding box from all coordinates in the GeoJSON and fit the map.
+    let minLng = Infinity, minLat = Infinity, maxLng = -Infinity, maxLat = -Infinity;
+    function scanCoords(coords: any) {
+      if (typeof coords[0] === "number") {
+        minLng = Math.min(minLng, coords[0]); maxLng = Math.max(maxLng, coords[0]);
+        minLat = Math.min(minLat, coords[1]); maxLat = Math.max(maxLat, coords[1]);
+      } else {
+        for (const c of coords) scanCoords(c);
+      }
+    }
+    for (const f of isochrone.features ?? []) scanCoords(f.geometry?.coordinates ?? []);
+    if (minLng !== Infinity) {
+      map.current.fitBounds(
+        [[minLng, minLat], [maxLng, maxLat]],
+        { padding: 48, maxZoom: 14, duration: 800 },
+      );
+    }
   }, [isochrone]);
 
   // Update stops layer — expand multi-mode stops into one feature per mode

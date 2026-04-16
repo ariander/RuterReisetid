@@ -50,7 +50,7 @@ async function ferryTerminalPolygon(
       serializer: "geojson",
       srid: 4326,
       simplify: 100,
-      buffer: 0.001,
+      buffer: 0.002,
       values: [remainingSeconds],
     },
   };
