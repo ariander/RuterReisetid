@@ -50,12 +50,16 @@ export default function Home() {
   const [infoOpen, setInfoOpen] = useState(false);
 
   // Onboarding modal state — shown on first visit
-  const [onboardingOpen, setOnboardingOpen] = useState(false);
+  const [onboardingOpen, setOnboardingOpen] = useState(true);
   const [onboardingLeaving, setOnboardingLeaving] = useState(false);
+  const [onboardingStep, setOnboardingStep] = useState(1); // 1 | 2 | 3
+  const [onboardingTransit, setOnboardingTransit] = useState<number | null>(null);
+  const [onboardingWalk, setOnboardingWalk] = useState<number | null>(null);
+  const onboardingStepChanged = useRef(false);
 
   useEffect(() => {
     const seen = localStorage.getItem("reisetid_onboarded");
-    if (!seen) setOnboardingOpen(true);
+    if (seen) setOnboardingOpen(false);
   }, []);
 
   const dismissOnboarding = useCallback(() => {
@@ -63,8 +67,12 @@ export default function Home() {
     setTimeout(() => {
       setOnboardingOpen(false);
       setOnboardingLeaving(false);
+      setOnboardingStep(1);
+      setOnboardingTransit(null);
+      setOnboardingWalk(null);
+      onboardingStepChanged.current = false;
       localStorage.setItem("reisetid_onboarded", "1");
-    }, 350);
+    }, 300);
   }, []);
 
   // Ferry warning toast state
@@ -181,7 +189,7 @@ export default function Home() {
   const prevLocationRef = useRef<typeof location>(null);
 
   useEffect(() => {
-    if (!location) return;
+    if (!location || onboardingOpen) return;
     const locationChanged = location !== prevLocationRef.current;
     prevLocationRef.current = location;
 
@@ -191,7 +199,7 @@ export default function Home() {
       locationChanged ? 0 : 400,
     );
     return () => { if (fetchDebounceRef.current) clearTimeout(fetchDebounceRef.current); };
-  }, [location, transitTime, walkTime, lastMileMode, fetchIsochrone]);
+  }, [location, transitTime, walkTime, lastMileMode, fetchIsochrone, onboardingOpen]);
 
   // Show / hide ferry warning based on whether location is outside Østlandet
   useEffect(() => {
@@ -257,7 +265,7 @@ export default function Home() {
             <button
               onClick={handleGeolocate}
               className={`shrink-0 w-9 h-9 rounded-full flex items-center justify-center transition-all duration-200 ${geoActive
-                  ? "bg-[#091AA9]/10"
+                  ? "bg-ruter-accent/10"
                   : "hover:bg-ink-primary/5 active:scale-95"
                 }`}
               aria-label="Min posisjon"
@@ -340,69 +348,129 @@ export default function Home() {
       {/* ── Onboarding modal ─────────────────────────────────────────── */}
       {onboardingOpen && (
         <div
-          className={`fixed inset-0 z-[300] flex items-center justify-center px-4 ${onboardingLeaving
-              ? "animate-out fade-out duration-350"
-              : "animate-in fade-in duration-300"
-            }`}
+          className={`fixed inset-0 z-[300] flex items-center justify-center px-4 ${
+            onboardingLeaving ? "animate-out fade-out duration-300" : "animate-in fade-in duration-500"
+          }`}
           style={{ background: "rgba(9,26,169,0.18)", backdropFilter: "blur(4px)" }}
-          onClick={dismissOnboarding}
         >
           <div
-            className={`relative bg-white rounded-3xl shadow-2xl max-w-sm w-full p-7 ${onboardingLeaving
-                ? "animate-out fade-out zoom-out-95 duration-350"
-                : "animate-in fade-in zoom-in-95 duration-300"
-              }`}
-            style={{ animationTimingFunction: "cubic-bezier(.34,1.56,.64,1)" }}
-            onClick={(e) => e.stopPropagation()}
+            className={`relative bg-white rounded-3xl shadow-2xl max-w-sm w-full p-7 ${
+              onboardingLeaving ? "animate-out fade-out zoom-out-95 duration-300" : "animate-in fade-in zoom-in-75 duration-700"
+            }`}
+            style={{ animationTimingFunction: "cubic-bezier(0.16, 1, 0.3, 1)" }}
           >
-            {/* Close button */}
+            {/* Hopp over */}
             <button
               onClick={dismissOnboarding}
-              className="absolute top-4 right-4 w-8 h-8 rounded-full flex items-center justify-center text-ink-primary/30 hover:text-ink-primary/60 hover:bg-ink-primary/5 transition-all duration-150 text-xl leading-none"
-              aria-label="Lukk"
+              className="absolute top-4 right-4 text-xs text-ink-quinary hover:text-ink-secondary transition-colors px-2 py-1"
             >
-              ×
+              Hopp over
             </button>
 
-            {/* Logo / ikon */}
+            {/* Logo */}
             <div className="flex justify-center mb-5">
-              <Image src="/reisetid-logo.svg" alt="Reisetid" width={128} height={64} />
+              <Image src="/reisetid-logo.svg" alt="Reisetid" width={96} height={48} />
             </div>
 
-            {/* Tittel */}
-            <h2 className="text-center font-bold text-ink-primary text-xl mb-2 leading-snug">
-              Hvor langt kommer du?
-            </h2>
-
-            {/* Ingress */}
-            <p className="text-center text-ink-primary/90 text-sm leading-relaxed mb-6">
-              Velg et sted på kartet, så tegner vi opp alt du kan nå med
-              kollektivtransport innen den tiden du setter.
-            </p>
-
-            {/* Steg */}
-            <ol className="space-y-3 mb-7">
-              {[
-                { n: "1", text: "Søk etter adresse eller trykk på kartet" },
-                { n: "2", text: "Juster maks reisetid etter behag" },
-                { n: "3", text: "Se det fargede området – alt innenfor er innen rekkevidde" },
-              ].map(({ n, text }) => (
-                <li key={n} className="flex items-start gap-3">
-                  <span className="shrink-0 w-5 h-5 rounded-full bg-[#091AA9] text-white text-xs font-bold flex items-center justify-center mt-0.5">
-                    {n}
-                  </span>
-                  <span className="text-sm text-ink-primary/75 leading-relaxed">{text}</span>
-                </li>
+            {/* Steg-indikator */}
+            <div className="flex justify-center gap-1.5 mb-6">
+              {[1, 2, 3].map((s) => (
+                <div
+                  key={s}
+                  className={`h-1.5 rounded-full transition-all duration-300 ${
+                    s === onboardingStep ? "w-6 bg-ink-primary" : "w-1.5 bg-ink-primary/15"
+                  }`}
+                />
               ))}
-            </ol>
+            </div>
 
-            {/* CTA */}
-            <button
-              onClick={dismissOnboarding}
-              className="w-full bg-[#091AA9] hover:bg-[#091AA9]/85 active:scale-[.98] text-white font-semibold text-sm rounded-full py-3 transition-all duration-150"
-            >
-              Kom i gang
-            </button>
+            {/* Steg-innhold — karusell-slide */}
+            <div style={{ clipPath: "inset(0 0 -100vh 0)" }}>
+              <div
+                className="flex transition-transform duration-300 ease-in-out"
+                style={{ transform: `translateX(${-(onboardingStep - 1) * 100}%)` }}
+              >
+                {/* Steg 1 — Hvor jobber du? */}
+                <div className="w-full shrink-0">
+                  <h2 className="font-bold text-ink-primary text-lg mb-1 leading-snug">
+                    Hvor jobber du?
+                  </h2>
+                  <p className="text-ink-secondary text-sm mb-4">
+                    Søk etter arbeidsplassen din, eller et annet sted du vil reise til.
+                  </p>
+                  <div className="bg-ink-primary/5 rounded-xl px-1">
+                    <SearchBar
+                      autoFocus
+                      onSelect={(loc) => {
+                        setLocationAndDeactivateGeo(loc);
+                        onboardingStepChanged.current = true;
+                        setOnboardingStep(2);
+                      }}
+                    />
+                  </div>
+                  <button
+                    onClick={() => {
+                      setLocationAndDeactivateGeo({ lat: 59.9094, lng: 10.7430, name: "Dronningens gate 40, Oslo" });
+                      onboardingStepChanged.current = true;
+                      setOnboardingStep(2);
+                    }}
+                    className="mt-3 w-full text-center text-xs text-ink-quinary hover:text-ink-secondary transition-colors py-1"
+                  >
+                    Eller bruk Oslo Sentrum →
+                  </button>
+                </div>
+
+                {/* Steg 2 — Kollektivtid */}
+                <div className="w-full shrink-0">
+                  <h2 className="font-bold text-ink-primary text-lg mb-1 leading-snug">
+                    Hvor lenge er du villig til å reise kollektivt?
+                  </h2>
+                  <p className="text-ink-secondary text-sm mb-6">
+                    Maks tid du er villig til å bruke på buss, trikk, tog, båt og T-bane.
+                  </p>
+                  <div className="grid grid-cols-3 gap-2 mb-6">
+                    {[10, 15, 20, 30, 45, 60].map((v) => (
+                      <button
+                        key={v}
+                        onClick={() => { setOnboardingTransit(v); setTransitTime(v); setTimeout(() => { onboardingStepChanged.current = true; setOnboardingStep(3); }, 400); }}
+                        className={`py-3 rounded-xl text-sm font-medium transition-all duration-150 ${
+                          onboardingTransit === v
+                            ? "bg-ink-primary text-white shadow-sm"
+                            : "bg-ink-primary/6 text-ink-primary hover:bg-ink-primary/10"
+                        }`}
+                      >
+                        {v} min
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Steg 3 — Gangtid */}
+                <div className="w-full shrink-0">
+                  <h2 className="font-bold text-ink-primary text-lg mb-1 leading-snug">
+                    Hvor lenge er du villig til å gå?
+                  </h2>
+                  <p className="text-ink-secondary text-sm mb-6">
+                    Til og fra holdeplassen — i begge ender av reisen.
+                  </p>
+                  <div className="grid grid-cols-3 gap-2 mb-6">
+                    {[5, 10, 15, 20, 30].map((v) => (
+                      <button
+                        key={v}
+                        onClick={() => { setOnboardingWalk(v); setWalkTime(v); setTimeout(dismissOnboarding, 400); }}
+                        className={`py-3 rounded-xl text-sm font-medium transition-all duration-150 ${
+                          onboardingWalk === v
+                            ? "bg-ink-primary text-white shadow-sm"
+                            : "bg-ink-primary/6 text-ink-primary hover:bg-ink-primary/10"
+                        }`}
+                      >
+                        {v} min
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       )}
@@ -482,8 +550,8 @@ export default function Home() {
             </ul>
             <p className="text-xs text-ink-primary/70 leading-relaxed mt-3">
               Laget av{" "}
-              <a href="mailto:arild.andersen@tetdigital.no" className="text-[#091AA9] no-underline hover:underline underline-offset-2 transition-all duration-200">Arild Andersen</a> i{" "}
-              <a href="https://tetdigital.no" target="_blank" rel="noopener noreferrer" className="text-[#091AA9] no-underline hover:underline underline-offset-2 transition-all duration-200">Tet Digital</a>. 
+              <a href="mailto:arild.andersen@tetdigital.no" className="text-ruter-accent no-underline hover:underline underline-offset-2 transition-all duration-200">Arild Andersen</a> i{" "}
+              <a href="https://tetdigital.no" target="_blank" rel="noopener noreferrer" className="text-ruter-accent no-underline hover:underline underline-offset-2 transition-all duration-200">Tet Digital</a>. 
             </p>
           </div>
         </div>

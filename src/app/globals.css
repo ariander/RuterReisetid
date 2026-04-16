@@ -12,6 +12,8 @@
   --color-ink-primary: var(--ink-primary);
   --color-ink-secondary: var(--ink-secondary);
   --color-ink-tertiary: var(--ink-tertiary);
+  --color-ink-quinary: var(--ink-quinary);
+  --color-ruter-accent: var(--ruter-accent);
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -71,9 +73,11 @@
   --ring: #313663;
   
   /* Ruter Specific */
-  --ink-primary: #313663;
+  --ink-primary: #313663; 
   --ink-secondary: #272D60;
-  --ink-tertiary: #2A3066;
+  --ink-tertiary: #6D7196;
+  --ink-quinary: #ABAEC5;
+  --ruter-accent: #2D54FF;
 
   --chart-1: oklch(0.809 0.105 251.813);
   --chart-2: oklch(0.623 0.214 259.815);
@@ -128,6 +132,9 @@
 @layer base {
   * {
     @apply border-border outline-ring/50;
+  }
+  button, [role="button"], [role="option"], select, label[for], a {
+    cursor: pointer;
   }
   body {
     @apply text-foreground;

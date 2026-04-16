@@ -7,9 +7,10 @@ import { Search } from "lucide-react";
 
 interface SearchBarProps {
   onSelect: (location: { lat: number; lng: number; name: string }) => void;
+  autoFocus?: boolean;
 }
 
-export function SearchBar({ onSelect }: SearchBarProps) {
+export function SearchBar({ onSelect, autoFocus }: SearchBarProps) {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<any[]>([]);
   const [isOpen, setIsOpen] = useState(false);
@@ -66,13 +67,14 @@ export function SearchBar({ onSelect }: SearchBarProps) {
   return (
     <div className="relative flex-1" ref={containerRef}>
       <div className="relative">
-        <div className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-primary opacity-50">
+        <div className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-secondary">
           <Search size={16} />
         </div>
         <Input
           ref={inputRef}
           placeholder="Finn sted"
-          className="h-10 pl-9 pr-3 bg-transparent border-none shadow-none rounded-xl text-sm focus-visible:ring-0 placeholder:text-ink-primary/40"
+          autoFocus={autoFocus}
+          className="h-10 pl-9 pr-3 bg-transparent border-none shadow-none rounded-xl text-sm focus-visible:ring-0 placeholder:text-ink-quinary"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onFocus={() => setIsOpen(results.length > 0)}
