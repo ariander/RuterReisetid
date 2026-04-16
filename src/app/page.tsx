@@ -62,18 +62,7 @@ export default function Home() {
     if (seen) setOnboardingOpen(false);
   }, []);
 
-  // Diagnostikk: skille mellom full reload og React remount
-  useEffect(() => {
-    console.log("[Reisetid] komponent montert");
-    const onUnload = () => console.log("[Reisetid] side laster om (full reload)");
-    window.addEventListener("beforeunload", onUnload);
-    return () => {
-      console.log("[Reisetid] komponent avmontert (React remount)");
-      window.removeEventListener("beforeunload", onUnload);
-    };
-  }, []);
-
-  const dismissOnboarding = useCallback(() => {
+const dismissOnboarding = useCallback(() => {
     setOnboardingLeaving(true);
     setTimeout(() => {
       setOnboardingOpen(false);
